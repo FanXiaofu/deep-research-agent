@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：探究Agentic RAG的概念及其与传统RAG的核心区别。\n覆盖维度：定义、功能特点、应用场景、技术原理对比。\n产出形式：研究报告或总结文档。",
+  "subquestions": [
+    "Agentic RAG的概念及其定义",
+    "Agentic RAG与传统RAG的功能特点对比"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "Agentic RAG的概念及其定义",
+      "content": "Agentic RAG（代理式检索增强生成）是一种结合了自主决策能力的AI代理与传统RAG（检索增强生成）的知识检索模式。其核心在于将知识检索视为一个动态的过程，而非固定的管线步骤。AI代理能够分析查询的复杂度，制定检索计划，动态调整策略，并对获取的信息进行评估和迭代。这种机制使得系统能够处理更复杂的问题，并在效率与质量之间取得平衡。Agentic RAG的关键特性包括自主性、工具使用和反思与调整。它通过引入AI代理，使得系统能够自主规划下一步行动，从外部资源中提取信息，并根据反馈调整策略。",
+      "sources": [
+        {
+          "title": "Agentic RAG 架構設計：AI 代理驅動的企業知識檢索革命 | 超智諮詢 Meta Intelligence",
+          "url": "https://www.meta-intelligence.tech/insight-agentic-rag"
+        },
+        {
+          "title": "ai-agents-for-beginners/translations/zh-TW/05-agentic-rag/README.md at main · microsoft/ai-agents-for-beginners · GitHub",
+          "url": "https://github.com/microsoft/ai-agents-for-beginners/blob/main/translations/zh-TW/05-agentic-rag/README.md"
+        },
+        {
+          "title": "什麼是Agentic RAG？AI Agent 結合RAG 新架構",
+          "url": "https://www.largitdata.com/knowledge/agentic-rag"
+        },
+        {
+          "title": "What Is Agentic RAG?",
+          "url": "https://www.youtube.com/watch?v=HodCjnGv8Ag"
+        },
+        {
+          "title": "什么是智能体式 RAG？AI 智能体与检索 | Ultralytics",
+          "url": "https://www.ultralytics.com/zh/glossary/agentic-rag"
+        }
+      ]
+    },
+    {
+      "subquestion": "Agentic RAG与传统RAG的功能特点对比",
+      "content": "Agentic RAG 与传统 RAG 的主要区别在于动态性和自主能力。传统 RAG 依赖于静态知识库，简单地查询、检索和生成响应，适用于快速、低成本的任务。而 Agentic RAG 引入了智能体，能够主动管理信息获取方式，进行多步骤推理和自主决策，适用于复杂任务如报告生成和问题拆解。Agentic RAG 的核心是 AI 查询引擎，确保获取最新、相关的信息，提高实时准确性。例如，DeepSearcher 就是一个典型的 Agentic RAG 架构，能够通过动态规划和多步骤推理生成详细报告。",
+      "sources": [
+        {
+          "title": "RAG vs Agentic RAG | Alex Xu",
+          "url": "https://www.linkedin.com/posts/alexxubyte_systemdesign-coding-interviewtips-activity-7344040591753678849-j-6J"
+        },
+        {
+          "title": "Traditional RAG vs. Agentic RAG—Why AI Agents Need Dynamic Knowledge to Get Smarter | NVIDIA Technical Blog",
+          "url": "https://developer.nvidia.cn/blog/traditional-rag-vs-agentic-rag-why-ai-agents-need-dynamic-knowledge-to-get-smarter"
+        },
+        {
+          "title": "Agentic RAG vs. RAG: What's the Difference?",
+          "url": "https://www.domo.com/learn/article/agentic-rag-vs-rag"
+        },
+        {
+          "title": "Agentic RAG对比传统RAG的优势- Jcpeng_std",
+          "url": "https://www.cnblogs.com/JCpeng/p/19140935"
+        },
+        {
+          "title": "DeepSearcher深度解读：Agentic RAG的出现，传统RAG的黄昏 - Zilliz 向量数据库",
+          "url": "https://zilliz.com.cn/blog/DeepSearcher-Insights-Agentic-RAG"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+# 深度研究助手部署（可选）：docker compose up -d
+# - app:       研究助手 Web 界面 → http://localhost:8000
+# - langfuse:  可观测平台       → http://localhost:3000（注册后把 key 填入 .env）
+#
+# 本地 Ollama 用户注意：容器内访问宿主机 Ollama 需取消 app 服务中
+# LLM_BASE_URL 的注释（host.docker.internal），并把 LLM_NATIVE_OLLAMA 保持为 1。
+
+services:
+  app:
+    build: .
+    container_name: research-agent-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      CHECKPOINT_DB: /app/data/checkpoints.db
+      # 本地 Ollama 用户取消注释：
+      # LLM_BASE_URL: http://host.docker.internal:11434/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - langfuse
+
+  langfuse:
+    image: langfuse/langfuse:2
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: please-change-me-to-a-random-string
+      SALT_KEY: please-change-me-too
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      - langfuse-db
+
+  langfuse-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_pgdata:/var/lib/postgresql/data
+
+volumes:
+  langfuse_pgdata:

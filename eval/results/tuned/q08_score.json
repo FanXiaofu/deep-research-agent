@@ -1,0 +1,25 @@
+{
+  "id": "q08",
+  "category": "工具选型",
+  "question": "Tavily、Serper、Bing Search API 三个搜索 API 各有什么优劣",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "Tavily在延迟和中文搜索质量方面表现较好",
+    "Serper则在功能丰富性上有所欠缺"
+  ],
+  "coverage": 4,
+  "missing": [
+    "具体性能数据对比",
+    "详细安全性分析"
+  ],
+  "citation_quality": 4,
+  "n_citations": 32,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 7,
+  "llm_calls": 6,
+  "input_tokens": 8959,
+  "output_tokens": 1112,
+  "cost_usd_est": 0.0036,
+  "elapsed_s": 73.6
+}

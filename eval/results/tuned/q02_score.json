@@ -1,0 +1,19 @@
+{
+  "id": "q02",
+  "category": "概念解释",
+  "question": "什么是 Agentic RAG，与传统 RAG 的核心区别是什么",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 19,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 10331,
+  "output_tokens": 1017,
+  "cost_usd_est": 0.0039,
+  "elapsed_s": 99.7
+}

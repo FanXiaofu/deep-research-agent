@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：对比分析Tavily、Serper、Bing Search API的优劣。\n覆盖维度：性能、功能、安全性、成本、易用性。\n产出形式：研究报告。",
+  "subquestions": [
+    "对比分析Tavily、Serper、Bing Search API在性能方面的优劣",
+    "对比分析Tavily、Serper、Bing Search API在安全性方面的优劣"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "对比分析Tavily、Serper、Bing Search API在性能方面的优劣",
+      "content": "根据测试，博查在国内环境下的稳定性和中文搜索质量更优，适合国内市场的AI Agent。Tavily在2026年的实测中表现优于Perplexity，但在某些场景下价格较高。Brave搜索API则提供了高性能和灵活的定价选项，适合构建搜索应用程序和AI模型。现有信息显示，Tavily和Serper在性能方面各有优势，但具体对比缺乏直接数据支持。",
+      "sources": [
+        {
+          "title": "给AI Agent 配搜索，国内能用的搜索API 实测对比- iTech - 博客园",
+          "url": "https://www.cnblogs.com/itech/p/19918043"
+        },
+        {
+          "title": "Perplexity Search API vs Tavily for RAG 2026",
+          "url": "https://alphacorp.ai/blog/perplexity-search-api-vs-tavily-for-rag-2026"
+        },
+        {
+          "title": "Best Web Search APIs: Compare Top Search API Tools - Olostep",
+          "url": "https://www.olostep.com/blog/best-web-search-apis"
+        },
+        {
+          "title": "Brave 搜索API 与其他网页搜索API 相比有何优势？",
+          "url": "https://brave.com/zh/search/api/guides/what-sets-brave-search-api-apart"
+        },
+        {
+          "title": "What are the Best Bing Search API Alternatives in 2026",
+          "url": "https://www.firecrawl.dev/blog/bing-search-api-alternatives"
+        }
+      ]
+    },
+    {
+      "subquestion": "对比分析Tavily、Serper、Bing Search API在安全性方面的优劣",
+      "content": "Tavily 和 Serper 在安全性方面各有特点。Tavily 是专为 AI 代理设计的搜索 API，提供结构化结果和语义重排序功能，但价格较高。Serper 则是 Google 搜索结果的 API 化，提供 Google 的搜索结果，价格较为便宜。在安全性方面，Tavily 作为国内服务，延迟低且稳定，适合国内用户。Serper 则提供了实际的 Google SERP 形状，但可能涉及更多数据隐私问题。现有信息不足以全面评估两者在安全性方面的具体优劣。",
+      "sources": [
+        {
+          "title": "给AI Agent 配搜索，国内能用的搜索API 实测对比- iTech - 博客园",
+          "url": "https://www.cnblogs.com/itech/p/19918043"
+        },
+        {
+          "title": "Tavily vs Serper — AI Search API vs SERP API (2026) | fastCRW",
+          "url": "https://fastcrw.com/alternatives/tavily-vs-serper"
+        },
+        {
+          "title": "国内私有化部署需要无key 可用方案(SearxNG + Bing API + ...",
+          "url": "https://github.com/apecloud/ApeRAG/issues/1800"
+        },
+        {
+          "title": "Best Web Search APIs: Compare Top Search API Tools - Olostep",
+          "url": "https://www.olostep.com/blog/best-web-search-apis"
+        },
+        {
+          "title": "What are the Best Bing Search API Alternatives in 2026",
+          "url": "https://www.firecrawl.dev/blog/bing-search-api-alternatives"
+        }
+      ]
+    }
+  ]
+}

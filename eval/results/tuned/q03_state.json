@@ -1,0 +1,52 @@
+{
+  "brief": "研究目标：评估 Rust 和 Go 在编写高性能 Web 后端方面的适用性。\n\n需覆盖维度：性能指标（吞吐量、响应时间）、语言特性、生态系统支持、社区活跃度、开发效率。\n\n期望产出：对比报告，包括图表和总结。",
+  "subquestions": [
+    "评估Rust和Go在吞吐量和响应时间上的性能指标差异",
+    "比较Rust和Go在语言特性、生态系统支持、社区活跃度和开发效率方面的优劣"
+  ],
+  "conflicts": [
+    "Rust在吞吐量方面达到了与Go相同水平，表现为每秒处理请求的数量相当，但Rust运行速度较慢，这可能与开发者的生产力有关。这与Reddit上的讨论指出，Rust在实际应用中可能不如Go快，这可能影响其响应时间存在矛盾。"
+  ],
+  "notes": [
+    {
+      "subquestion": "评估Rust和Go在吞吐量和响应时间上的性能指标差异",
+      "content": "在一项使用Kubernetes容器进行的性能测试中，Rust在吞吐量方面达到了与Go相同水平，表现为每秒处理请求的数量相当。然而，测试者提到Rust运行速度较慢，这可能与开发者的生产力有关，Go从头构建以提高开发效率。[Rust vs. Go (Golang): Performance 2025](https://www.youtube.com/watch?v=CsKNTwS9kic)。另一方面，Reddit上的讨论指出，Rust在实际应用中可能不如Go快，这可能影响其响应时间。[back_to_go_rust_is_slooowwww](https://www.reddit.com/r/rust/comments/hkcbnt/back_to_go_rust_is_slooowwww?tl=zh-hans)。",
+      "sources": [
+        {
+          "title": "Rust vs. Go (Golang): Performance 2025",
+          "url": "https://www.youtube.com/watch?v=CsKNTwS9kic"
+        },
+        {
+          "title": "回去用Go，Rust 真的好慢啊。",
+          "url": "https://www.reddit.com/r/rust/comments/hkcbnt/back_to_go_rust_is_slooowwww?tl=zh-hans"
+        }
+      ]
+    },
+    {
+      "subquestion": "比较Rust和Go在语言特性、生态系统支持、社区活跃度和开发效率方面的优劣",
+      "content": "Rust和Go在语言特性、生态系统支持、社区活跃度和开发效率方面各有优势。Rust在内存安全和底层控制方面表现出色，但开发效率较低；Go则在开发效率和并发处理上表现出色，但内存安全性稍逊一筹。根据Neohope的对比，Go在开发效率上优于Rust，而Rust在内存安全和并发安全方面表现更佳。此外，Go的生态成熟度高于Rust，但Rust在长期可维护性上更胜一筹。RustRover的文章指出，Go在构建大规模分布式系统方面具有优势，而Rust在底层控制和内存安全方面更胜一筹。尽管Go用户中有部分人考虑转向Rust，但Go语言仍在不断进化，其社区和工具也在持续完善。因此，选择语言应基于具体需求和场景。[四大主流编译语言深度解析](https://www.neohope.com/2026/03/15/%E5%9B%9B%E5%A4%A7%E4%B8%BB%E6%B5%81%E7%BC%96%E8%AF%91%E8%AF%AD%E8%A8%80%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90%EF%BC%9Ac%E3%80%81c%E3%80%81go%E3%80%81rust%E6%8A%80%E6%9C%AF%E7%89%B9%E6%80%A7%E5%85%A8)，[Rust vs. Go](https://gist.github.com/weihanglo/3dc1af4b0c15cb9ec600f28a7b06ad2f)，[Go还是Rust？2025年技术选型之辩](https://tonybai.com/2025/06/15/rust-vs-go-2025)",
+      "sources": [
+        {
+          "title": "四大主流编译语言深度解析：C、C++、Go、Rust技术特性全景比对 – Neohope的网络笔记",
+          "url": "https://www.neohope.com/2026/03/15/%E5%9B%9B%E5%A4%A7%E4%B8%BB%E6%B5%81%E7%BC%96%E8%AF%91%E8%AF%AD%E8%A8%80%E6%B7%B1%E5%BA%A6%E8%A7%A3%E6%9E%90%EF%BC%9Ac%E3%80%81c%E3%80%81go%E3%80%81rust%E6%8A%80%E6%9C%AF%E7%89%B9%E6%80%A7%E5%85%A8"
+        },
+        {
+          "title": "【譯】Rust vs. Go",
+          "url": "https://gist.github.com/weihanglo/3dc1af4b0c15cb9ec600f28a7b06ad2f"
+        },
+        {
+          "title": "Go还是Rust？2025年技术选型之辩 | Tony Bai",
+          "url": "https://tonybai.com/2025/06/15/rust-vs-go-2025"
+        },
+        {
+          "title": "回去用Go，Rust 真的好慢啊。",
+          "url": "https://www.reddit.com/r/rust/comments/hkcbnt/back_to_go_rust_is_slooowwww?tl=zh-hans"
+        },
+        {
+          "title": "作为全栈开发者，我该投资Go 还是Rust？ : r/golang",
+          "url": "https://www.reddit.com/r/golang/comments/1owvoh6/should_i_invest_in_go_or_rust_as_a_fullstack_dev?tl=zh-hans"
+        }
+      ]
+    }
+  ]
+}

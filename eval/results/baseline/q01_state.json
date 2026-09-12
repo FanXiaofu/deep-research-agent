@@ -1,0 +1,114 @@
+{
+  "brief": "研究目标：对比分析LangGraph和CrewAI的功能特点、应用场景及适用性。\n覆盖维度：功能特性、应用场景、适用性。\n产出形式：对比表格或图表。",
+  "subquestions": [
+    "LangGraph和CrewAI的功能特性对比",
+    "LangGraph和CrewAI的应用场景及适用性对比"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "LangGraph与CrewAI的技术架构差异及各自在复杂工作流场景中的适用性",
+      "content": "CrewAI 与 LangGraph 作为下一代智能体编排平台的代表，技术架构差异显著。CrewAI 采用代码优先（Code-First）的编排方式，将智能体建模为具有角色、目标和背景的团队成员，强调角色驱动（Role-Driven）设计，适用于流程明确的团队协作场景（如客户支持系统）。LangGraph 则基于状态图（State Diagram）实现可视化编排，通过有向图结构管理复杂工作流，支持条件路由和动态状态管理，更适合需要精细流程控制的场景（如医疗文件比对）。两者在架构复杂度、协作灵活性和状态管理上存在差异：LangGraph 架构复杂度高（图结构），协作灵活性强（条件路由灵活）；CrewAI 架构复杂度高（团队模拟），协作灵活性中（角色分工明确）。根据对比，LangGraph 适用于复杂流程控制，CrewAI 适合团队决策模拟场景。关键结论：CrewAI 适合流程明确的团队协作，LangGraph 适合复杂流程控制。[1](https://cloud.tencent.com/developer/article/2541954) [2](https://developer.aliyun.com/article/1671988) [3](https://developer.baidu.com/article/detail.html?id=6777261)",
+      "sources": [
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2541954"
+        },
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评",
+          "url": "https://developer.aliyun.com/article/1671988"
+        },
+        {
+          "title": "多智能体开发框架对比：LangGraph、Autogen与CrewAI技术解析-百度开发者中心",
+          "url": "https://developer.baidu.com/article/detail.html?id=6777261"
+        },
+        {
+          "title": "AI 代理框架選型與應用指南：以2025 生態系為核心的比較研究",
+          "url": "https://hackmd.io/@4S8mEx0XRga0zuLJleLbMQ/HJpWPwABgl"
+        },
+        {
+          "title": "Agent 框架横向对比：LangChain、LangGraph、AutoGen",
+          "url": "https://zhuanlan.zhihu.com/p/1984725399767376336"
+        }
+      ]
+    },
+    {
+      "subquestion": "CrewAI在团队协作任务中与LangGraph在链式推理任务中的性能对比",
+      "content": "CrewAI与LangGraph在团队协作任务中性能对比的量化研究显示：CrewAI总分7.53/10，LangGraph总分8.28/10（开发效率评分维度）。CrewAI采用角色驱动（Role-Driven）设计，通过团队协作模式实现多智能体任务分配，支持顺序与层次化流程；LangGraph则基于状态图编排（Visual Orchestration），更侧重生产级工作流的结构化与容错性。关键差异在于：CrewAI学习成本较高（6.5/10 vs LangGraph的8.0/10），但开发速度更快（8.2/10 vs 7.5/10）；LangGraph调试便利性更强（8.8/10 vs 7.0/10）。CrewAI内置RAG支持和多工具集成，适合快速构建团队协作场景；LangGraph更适用于复杂、高可靠性工作流。数据来源：腾讯云测评（[1](https://cloud.tencent.com/developer/article/2541954)）与ZenML对比报告（[2](https://www.zenml.io/blog/langgraph-vs-crewai)）。",
+      "sources": [
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2541954"
+        },
+        {
+          "title": "LangGraph vs CrewAI: Let's Learn About the Differences",
+          "url": "https://www.zenml.io/blog/langgraph-vs-crewai"
+        },
+        {
+          "title": "Crewai vs LangGraph: Know The Differences",
+          "url": "https://www.truefoundry.com/blog/crewai-vs-langgraph"
+        },
+        {
+          "title": "Agent 框架横向对比：LangChain、LangGraph、AutoGen",
+          "url": "https://zhuanlan.zhihu.com/p/1984725399767376336"
+        },
+        {
+          "title": "对比5个最需要了解的AI多智能体编排框架【3】：角色扮演系的CrewAI - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7444834088680161318"
+        }
+      ]
+    },
+    {
+      "subquestion": "LangGraph和CrewAI的功能特性对比",
+      "content": "LangGraph和CrewAI在功能特性上有显著差异。LangGraph提供并行、分层和循环图模式，支持动态路由，实现细粒度、状态化的智能体控制。CrewAI则侧重于顺序和分层流程，易于设置，由管理者领导，并逐步向共识模型扩展。CrewAI内置了丰富的工具库，支持RAG和自定义搜索工具，提供直观的团队协作模式。相比之下，LangGraph强调可视化编排和状态图管理，旨在实现更强大的工作流程控制。",
+      "sources": [
+        {
+          "title": "LangGraph vs CrewAI: Let's Learn About the Differences",
+          "url": "https://www.zenml.io/blog/langgraph-vs-crewai"
+        },
+        {
+          "title": "Agent 框架横向对比：LangChain、LangGraph、AutoGen",
+          "url": "https://zhuanlan.zhihu.com/p/1984725399767376336"
+        },
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评",
+          "url": "https://developer.aliyun.com/article/1671988"
+        },
+        {
+          "title": "LangGraph vs. CrewAI: Which Framework Should You Choose for ...",
+          "url": "https://medium.com/@shashank_shekhar_pandey/langgraph-vs-crewai-which-framework-should-you-choose-for-your-next-ai-agent-project-aa55dba5bbbf"
+        },
+        {
+          "title": "2026 年最火AI 技术实战：用CrewAI 从零搭建多智能体协作系统",
+          "url": "https://codelabs.developers.google.com/next26/scale-agents?hl=zh-cn"
+        }
+      ]
+    },
+    {
+      "subquestion": "LangGraph和CrewAI的应用场景及适用性对比",
+      "content": "LangGraph和CrewAI均适用于多智能体协作场景，但两者在设计理念和适用场景上有所不同。LangGraph通过状态机建模，强调极致可控和持久化，适合逻辑复杂的工业级应用。CrewAI则基于角色扮演，提供高自由度，适合流程明确的任务协作。两者均支持与多种工具和API集成，但CrewAI在高级功能上依赖LangChain生态。LangGraph提供高度灵活性，适合高级用户，而CrewAI则更易于新手上手。",
+      "sources": [
+        {
+          "title": "Multi-Agent 框架终极对比：LangGraph、CrewAI - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2639437"
+        },
+        {
+          "title": "LangGraph vs CrewAI: Let's Learn About the Differences",
+          "url": "https://www.zenml.io/blog/langgraph-vs-crewai"
+        },
+        {
+          "title": "Agent 框架横向对比：LangChain、LangGraph、AutoGen",
+          "url": "https://zhuanlan.zhihu.com/p/1984725399767376336"
+        },
+        {
+          "title": "选择最适合你的多AI代理框架——AutoGen、LangGraph、CrewAI、Swarm、Magentic-One全面对比 - Data Application Lab",
+          "url": "https://www.dataapplab.com/magentic-one-autogen-langgraph-crewai-or-openai-swarm-which-multi-ai-agent-framework-is-best"
+        },
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评",
+          "url": "https://developer.aliyun.com/article/1671988"
+        }
+      ]
+    }
+  ]
+}

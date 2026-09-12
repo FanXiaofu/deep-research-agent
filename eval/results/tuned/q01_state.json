@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：对比分析LangGraph和CrewAI的功能特点、应用场景及优势。\n覆盖维度：技术架构、应用场景、优势与劣势。\n产出形式：对比分析报告。",
+  "subquestions": [
+    "LangGraph和CrewAI的技术架构对比",
+    "LangGraph和CrewAI的应用场景及优势分析"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "LangGraph和CrewAI的技术架构对比",
+      "content": "LangGraph 和 CrewAI 均为多智能体框架，支持复杂 AI 工作流。LangGraph 通过状态图提供低级控制，强调持久性和状态机的明确性，而 CrewAI 则提供高级抽象，便于角色定义和任务分配。LangGraph 的开发速度较快，但 CrewAI 拥有更大的用户基础。两者均支持并发执行，但 CrewAI 提供更广泛的并发性，而 LangGraph 通过事务一致性实现并发。在企业合规和安全性方面，两者均有所涉及，但具体细节未详细说明。[1](https://www.zenml.io/blog/langgraph-vs-crewai) [2](https://cloud.tencent.com/developer/article/2639437) [3](https://developer.aliyun.com/article/1671988) [4](https://zhuanlan.zhihu.com/p/1984725399767376336) [5](https://www.53ai.com/news/langchain/2025060515872.html)",
+      "sources": [
+        {
+          "title": "LangGraph vs CrewAI: Let's Learn About the Differences",
+          "url": "https://www.zenml.io/blog/langgraph-vs-crewai"
+        },
+        {
+          "title": "Multi-Agent 框架终极对比：LangGraph、CrewAI - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2639437"
+        },
+        {
+          "title": "CrewAI与LangGraph：下一代智能体编排平台深度测评",
+          "url": "https://developer.aliyun.com/article/1671988"
+        },
+        {
+          "title": "Agent 框架横向对比：LangChain、LangGraph、AutoGen",
+          "url": "https://zhuanlan.zhihu.com/p/1984725399767376336"
+        },
+        {
+          "title": "Dify、CrewAI、AutoGen五大框架横向对比- 53AI-AI知识库",
+          "url": "https://www.53ai.com/news/langchain/2025060515872.html"
+        }
+      ]
+    },
+    {
+      "subquestion": "LangGraph和CrewAI的应用场景及优势分析",
+      "content": "LangGraph 和 CrewAI 是用于构建多智能体协作系统的现代框架。CrewAI 侧重于自主智能体团队的协调，每个智能体都有特定的角色、目标和通信策略；而 LangGraph 提供基于图的工作流引擎，旨在构建结构化、健壮的大型语言模型应用。两者都致力于简化多智能体开发，但侧重不同：CrewAI 强调团队协作，而 LangGraph 强调状态驱动的生产级执行。CrewAI 已经在 GitHub 上获得了更多的关注，但 LangGraph 的开发速度更快。两者都需考虑模型路由、成本限制、工具治理和追踪。[LangGraph vs CrewAI: Let’s Learn About the Differences](https://www.zenml.io/blog/langgraph-vs-crewai) 和 [Crewai vs LangGraph: Know The Differences](https://www.truefoundry.com/blog/crewai-vs-langgraph) 提供了详细的比较。",
+      "sources": [
+        {
+          "title": "2026 年最火AI 技术实战：用CrewAI 从零搭建多智能体协作系统",
+          "url": "https://codelabs.developers.google.com/next26/scale-agents?hl=zh-cn"
+        },
+        {
+          "title": "LangGraph vs CrewAI: Let's Learn About the Differences",
+          "url": "https://www.zenml.io/blog/langgraph-vs-crewai"
+        },
+        {
+          "title": "Comparing AI agent frameworks: CrewAI, LangGraph, and ...",
+          "url": "https://developer.ibm.com/articles/awb-comparing-ai-agent-frameworks-crewai-langgraph-and-beeai"
+        },
+        {
+          "title": "Crewai vs LangGraph: Know The Differences",
+          "url": "https://www.truefoundry.com/blog/crewai-vs-langgraph"
+        },
+        {
+          "title": "LangGraph vs CrewAI vs AutoGen: Production Guide (2026)",
+          "url": "https://pub.towardsai.net/langgraph-vs-crewai-vs-autogen-which-ai-agent-framework-should-your-enterprise-use-in-2026-3a9ebb407b09"
+        }
+      ]
+    }
+  ]
+}

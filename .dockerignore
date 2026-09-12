@@ -1,0 +1,10 @@
+.env
+.git
+__pycache__/
+*.pyc
+logs/
+reports/
+eval/results/
+checkpoints.db
+data/
+.last_thread

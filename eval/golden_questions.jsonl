@@ -1,0 +1,20 @@
+{"id": "q01", "category": "技术对比", "question": "LangGraph 和 CrewAI 有什么区别，各自适合什么场景", "must_cover": ["架构模型差异", "适用场景", "生态与学习成本"]}
+{"id": "q02", "category": "概念解释", "question": "什么是 Agentic RAG，与传统 RAG 的核心区别是什么", "must_cover": ["定义与工作机制", "与传统 RAG 的区别", "典型应用场景"]}
+{"id": "q03", "category": "工具选型", "question": "Rust 和 Go 哪个更适合写高性能 Web 后端", "must_cover": ["性能对比", "并发模型", "生态与开发效率"]}
+{"id": "q04", "category": "概念解释", "question": "MCP 协议是什么，它解决了什么问题", "must_cover": ["协议定义与架构", "解决的问题", "典型用法"]}
+{"id": "q05", "category": "工具选型", "question": "向量数据库 Milvus 和 Qdrant 该怎么选", "must_cover": ["架构与部署差异", "性能与规模", "适用场景"]}
+{"id": "q06", "category": "技术趋势", "question": "2025 到 2026 年大模型参数高效微调的主流方法有哪些", "must_cover": ["LoRA/QLoRA 等方法", "与全量微调的取舍", "适用场景"]}
+{"id": "q07", "category": "概念解释", "question": "LLM 推理中的 KV Cache 是什么，如何优化显存占用", "must_cover": ["KV Cache 原理", "显存占用因素", "常见优化手段"]}
+{"id": "q08", "category": "工具选型", "question": "Tavily、Serper、Bing Search API 三个搜索 API 各有什么优劣", "must_cover": ["各家定位与价格", "返回质量", "适用场景"]}
+{"id": "q09", "category": "工具选型", "question": "构建 AI 应用后端时 FastAPI 和 Flask 应该如何选型", "must_cover": ["异步与流式支持", "生态与社区", "选型建议"]}
+{"id": "q10", "category": "概念解释", "question": "什么是 GraphRAG，相比向量 RAG 的优势和代价是什么", "must_cover": ["GraphRAG 原理", "与向量 RAG 对比", "构建成本与局限"]}
+{"id": "q11", "category": "技术趋势", "question": "本地部署开源大模型的方案 Ollama、vLLM、llama.cpp 分别适合什么场景", "must_cover": ["三者定位", "性能与硬件要求", "适用场景"]}
+{"id": "q12", "category": "工具选型", "question": "PostgreSQL 的 pgvector 与专用向量数据库相比够用吗", "must_cover": ["pgvector 能力边界", "与专用库对比", "选型建议"]}
+{"id": "q13", "category": "概念解释", "question": "Agent 的 ReAct 模式是什么，它有什么局限性", "must_cover": ["ReAct 机制", "优势", "局限与改进方向"]}
+{"id": "q14", "category": "工具选型", "question": "Langfuse 和 LangSmith 在 LLM 可观测性上有什么差异", "must_cover": ["功能对比", "部署方式与成本", "适用场景"]}
+{"id": "q15", "category": "技术趋势", "question": "10B 以下的小模型现在能胜任哪些生产级任务", "must_cover": ["能力边界", "典型生产案例", "局限"]}
+{"id": "q16", "category": "概念解释", "question": "LLM 的结构化输出是什么，主流实现方式有哪些", "must_cover": ["定义与价值", "实现方式对比", "局限"]}
+{"id": "q17", "category": "工具选型", "question": "Agent 会话记忆存 Redis 还是 PostgreSQL 该怎么选", "must_cover": ["两种方案特点", "一致性与时延", "选型建议"]}
+{"id": "q18", "category": "技术趋势", "question": "AI 编程助手 Copilot、Claude Code、Cursor 的工作原理有什么不同", "must_cover": ["交互形态", "底层机制差异", "适用人群"]}
+{"id": "q19", "category": "概念解释", "question": "RAG 中的重排序 rerank 是什么，为什么能提升检索效果", "must_cover": ["rerank 原理", "与向量检索的配合", "代价与收益"]}
+{"id": "q20", "category": "工具选型", "question": "用 Hugging Face Transformers 和 vLLM 部署模型有什么区别", "must_cover": ["推理性能", "部署复杂度", "适用场景"]}

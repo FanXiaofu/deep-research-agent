@@ -1,0 +1,19 @@
+{
+  "id": "q05",
+  "category": "工具选型",
+  "question": "向量数据库 Milvus 和 Qdrant 该怎么选",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 18,
+  "citation_validity": 1.0,
+  "source_utilization": 0.25,
+  "n_refs": 12,
+  "llm_calls": 6,
+  "input_tokens": 10419,
+  "output_tokens": 1257,
+  "cost_usd_est": 0.0042,
+  "elapsed_s": 83.1
+}

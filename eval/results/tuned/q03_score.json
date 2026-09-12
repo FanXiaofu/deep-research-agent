@@ -1,0 +1,19 @@
+{
+  "id": "q03",
+  "category": "工具选型",
+  "question": "Rust 和 Go 哪个更适合写高性能 Web 后端",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 4,
+  "n_citations": 5,
+  "citation_validity": 1.0,
+  "source_utilization": 0.5,
+  "n_refs": 6,
+  "llm_calls": 6,
+  "input_tokens": 6716,
+  "output_tokens": 1372,
+  "cost_usd_est": 0.0033,
+  "elapsed_s": 141.2
+}

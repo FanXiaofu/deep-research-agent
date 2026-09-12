@@ -1,0 +1,19 @@
+{
+  "id": "q07",
+  "category": "概念解释",
+  "question": "LLM 推理中的 KV Cache 是什么，如何优化显存占用",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 16,
+  "citation_validity": 1.0,
+  "source_utilization": 0.3,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 13907,
+  "output_tokens": 1626,
+  "cost_usd_est": 0.0055,
+  "elapsed_s": 109.0
+}

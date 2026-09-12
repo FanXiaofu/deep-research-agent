@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Research Agent · 多 Agent 深度研究助手</title>
+<style>
+  :root { --bg:#0f1117; --card:#1a1d27; --line:#2a2e3d; --text:#e2e5ee; --muted:#8b91a5; --acc:#5b8cff; --ok:#3fbf7f; --warn:#e0a24a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:880px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .sub b { color:var(--acc); font-weight:600; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  textarea, input[type=text], select { width:100%; background:#12141c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:14px; font-family:inherit; }
+  textarea { resize:vertical; min-height:64px; }
+  .row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .row label { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:6px; }
+  select { width:auto; }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:10px 20px; font-size:14px; cursor:pointer; font-weight:600; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); font-weight:400; }
+  .ev { display:flex; gap:10px; padding:10px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  .ev:last-child { border-bottom:0; }
+  .ev .tag { flex:none; width:96px; color:var(--acc); font-weight:600; }
+  .ev .t { flex:none; width:52px; color:var(--muted); font-size:12px; padding-top:2px; }
+  .ev .body { flex:1; line-height:1.6; }
+  .ev .body li { margin:2px 0; }
+  .muted { color:var(--muted); }
+  #review-panel { border-color:var(--warn); }
+  #review-panel h3 { margin:0 0 8px; font-size:15px; color:var(--warn); }
+  #report-panel h2 { font-size:18px; margin:0 0 10px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .chip { background:#12141c; border:1px solid var(--line); border-radius:99px; padding:4px 12px; font-size:12px; color:var(--muted); }
+  .chip b { color:var(--text); font-weight:600; }
+  .md { line-height:1.75; font-size:14.5px; overflow-wrap:break-word; }
+  .md h1 { font-size:20px; } .md h2 { font-size:17px; margin-top:22px; border-bottom:1px solid var(--line); padding-bottom:6px; } .md h3 { font-size:15px; }
+  .md a { color:var(--acc); }
+  .md code { background:#12141c; padding:1px 5px; border-radius:4px; font-size:13px; }
+  .err { color:#ff7b7b; }
+  .hide { display:none; }
+  .status { color:var(--muted); font-size:13px; margin:8px 0; }
+  .status .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--warn); margin-right:6px; animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔬 Deep Research Agent</h1>
+  <div class="sub">多 Agent 深度研究助手 · 模型 <b>{{ model }}</b> · 搜索 <b>{{ provider }}</b> · Langfuse <b>{{ "已启用" if langfuse else "未启用" }}</b></div>
+
+  <div class="panel">
+    <textarea id="topic" placeholder="输入研究主题，例如：LangGraph 和 CrewAI 有什么区别，各自适合什么场景"></textarea>
+    <div class="row">
+      <label>子问题上限 <select id="max-sub"><option>2</option><option selected>3</option><option>4</option></select></label>
+      <label>检索轮数 <select id="rounds"><option selected>1</option><option>2</option></select></label>
+      <label><input type="checkbox" id="review" checked> 研究前人工审核任务书</label>
+      <span style="flex:1"></span>
+      <button id="btn-start" onclick="startResearch()">开始研究</button>
+    </div>
+    <div class="status hide" id="status"><span class="dot"></span><span id="status-text">研究中…</span></div>
+  </div>
+
+  <div class="panel hide" id="timeline-panel">
+    <div id="timeline"></div>
+  </div>
+
+  <div class="panel hide" id="review-panel">
+    <h3>⏸ human-in-the-loop：请审核研究任务书</h3>
+    <div id="brief-view" class="md" style="margin-bottom:10px"></div>
+    <textarea id="brief-edit" class="hide" style="min-height:100px"></textarea>
+    <div class="row">
+      <button onclick="resume('')">确认继续</button>
+      <button class="ghost" onclick="toggleEdit()">修改任务书</button>
+      <button id="btn-resume" class="hide" onclick="resumeFromEdit()">使用修改后的任务书</button>
+    </div>
+  </div>
+
+  <div class="panel hide" id="report-panel">
+    <h2>📄 研究报告</h2>
+    <div class="chips" id="stats"></div>
+    <button class="ghost" style="margin-bottom:12px" onclick="copyMd()">复制 Markdown</button>
+    <div class="md" id="report"></div>
+  </div>
+</div>
+
+<script>
+let es = null, threadId = null, lastMd = "";
+
+function fmt(s) { return s + "s"; }
+function show(id) { document.getElementById(id).classList.remove("hide"); }
+function status(text) { show("status"); document.getElementById("status-text").textContent = text; }
+function done() { document.getElementById("status").classList.add("hide"); setBtn(false); if (es) { es.close(); es = null; } }
+function setBtn(b) { document.getElementById("btn-start").disabled = b; }
+
+function addEvent(label, html, elapsed) {
+  const div = document.createElement("div");
+  div.className = "ev";
+  div.innerHTML = `<span class="tag">${label}</span><span class="t">${fmt(elapsed ?? "")}</span><span class="body">${html}</span>`;
+  const tl = document.getElementById("timeline");
+  tl.appendChild(div);
+  div.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+
+function handle(data) {
+  if (data.type === "start") {
+    threadId = data.thread_id;
+    status("研究中…（" + esc(data.topic) + "）");
+  } else if (data.type === "node_done") {
+    let body = "";
+    if (data.node === "coordinator") body = "生成研究任务书：<i>" + esc(data.brief.slice(0, 80)) + "…</i>";
+    else if (data.node === "planner") body = "拆解出 " + data.subquestions.length + " 个子问题：<ul>" +
+      data.subquestions.map(s => "<li>" + esc(s) + "</li>").join("") + "</ul>";
+    else if (data.node === "researcher") body = "完成「" + esc(data.subquestion) + "」（" + data.n_sources + " 个来源）";
+    else if (data.node === "verifier") body = data.conflicts && data.conflicts.length
+      ? "发现 " + data.conflicts.length + " 处来源冲突：<ul>" + data.conflicts.slice(0, 3).map(c => "<li>" + esc(c) + "</li>").join("") + "</ul>"
+      : "交叉比对完成，未发现明显冲突";
+    else if (data.node === "writer") body = "报告撰写完成";
+    addEvent(data.label, body, data.elapsed_s);
+  } else if (data.type === "interrupt") {
+    document.getElementById("brief-view").textContent = data.brief;
+    document.getElementById("brief-edit").value = data.brief;
+    show("review-panel");
+    done();
+  } else if (data.type === "report") {
+    lastMd = data.markdown;
+    document.getElementById("report").innerHTML = data.html;
+    const s = data.stats;
+    document.getElementById("stats").innerHTML = [
+      "子问题 <b>" + s.subquestions + "</b>", "笔记 <b>" + s.notes + "</b>",
+      "LLM 调用 <b>" + s.llm_calls + "</b>", "tokens <b>" + s.input_tokens + " + " + s.output_tokens + "</b>",
+      "成本估算 <b>$" + s.cost_usd_est + "</b>", "耗时 <b>" + fmt(s.elapsed_s) + "</b>",
+    ].map(c => `<span class="chip">${c}</span>`).join("");
+    show("report-panel");
+    done();
+  } else if (data.type === "error") {
+    addEvent("❌ 出错", `<span class="err">${esc(data.message)}</span>`, "");
+    done();
+  }
+}
+
+function listen(url) {
+  setBtn(true);
+  show("timeline-panel");
+  es = new EventSource(url);
+  es.onmessage = e => handle(JSON.parse(e.data));
+  es.onerror = () => { if (es.readyState === EventSource.CLOSED) done(); };
+}
+
+function startResearch() {
+  const topic = document.getElementById("topic").value.trim();
+  if (!topic) { alert("请输入研究主题"); return; }
+  ["timeline-panel", "review-panel", "report-panel"].forEach(id => document.getElementById(id).classList.add("hide"));
+  document.getElementById("timeline").innerHTML = "";
+  const review = document.getElementById("review").checked ? 1 : 0;
+  const maxSub = document.getElementById("max-sub").value;
+  const rounds = document.getElementById("rounds").value;
+  listen(`/api/research/stream?topic=${encodeURIComponent(topic)}&review=${review}&max_sub=${maxSub}&rounds=${rounds}`);
+}
+
+function toggleEdit() {
+  document.getElementById("brief-view").classList.toggle("hide");
+  document.getElementById("brief-edit").classList.toggle("hide");
+  document.getElementById("btn-resume").classList.toggle("hide");
+}
+
+function resume(value) {
+  document.getElementById("review-panel").classList.add("hide");
+  listen(`/api/resume/stream?thread_id=${encodeURIComponent(threadId)}&value=${encodeURIComponent(value)}`);
+}
+
+function resumeFromEdit() { resume(document.getElementById("brief-edit").value); }
+
+function copyMd() { navigator.clipboard.writeText(lastMd); }
+</script>
+</body>
+</html>

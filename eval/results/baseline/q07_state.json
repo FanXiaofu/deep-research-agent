@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析LLM推理中KV缓存的工作原理及其对显存占用的影响，探索优化策略。\n覆盖维度：缓存机制、显存管理、性能优化技术。\n产出形式：研究报告，包含理论分析、实验结果及优化建议。",
+  "subquestions": [
+    "分析LLM推理中KV缓存的工作原理及其对显存占用的影响",
+    "探索缓存机制、显存管理及性能优化技术在LLM推理中的应用"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "分析LLM推理中KV缓存的工作原理及其对显存占用的影响",
+      "content": "KV缓存是优化大型语言模型（LLM）推理效率的关键机制，通过存储中间计算结果（即注意力机制中的Key和Value向量），避免重复计算，显著提升生成速度并降低显存占用。具体而言，KV缓存以矩阵形式存储，每层Transformer对应一组Key和Value矩阵。以LLaMA-7B为例，生成1024个token时，KV缓存约占用1.2GB显存。为解决显存超出问题，可以将缓存划分为固定大小的页，通过交换机制动态加载所需页；使用INT8或INT4量化技术；引入稀疏矩阵减少缓存规模；将常用提示的KV缓存持久化到磁盘。",
+      "sources": [
+        {
+          "title": "LLM推理中的KV缓存机制：从原理到优化实践",
+          "url": "https://cloud.baidu.com/article/4411019"
+        },
+        {
+          "title": "KV 缓存：深度解析大型语言模型推理的内存挑战原创 - CSDN博客",
+          "url": "https://blog.csdn.net/weixin_36829761/article/details/139612894"
+        },
+        {
+          "title": "大模型中 KV Cache 原理及显存占用分析",
+          "url": "https://blog.csdn.net/muyao987/article/details/140364179"
+        },
+        {
+          "title": "LLM模型训练&推理参数量占用_llm显存占用-CSDN博客",
+          "url": "https://blog.csdn.net/qq_34499305/article/details/146323330"
+        },
+        {
+          "title": "【llm对话系统】大模型源码分析之llama kv cache缓存逻辑-CSDN博客",
+          "url": "https://blog.csdn.net/kakaZhui/article/details/145393435"
+        }
+      ]
+    },
+    {
+      "subquestion": "探索缓存机制、显存管理及性能优化技术在LLM推理中的应用",
+      "content": "研究显示，键值缓存（KV Cache）在大型语言模型（LLM）推理中扮演着关键角色，通过存储注意力机制的中间状态，显著提升了推理速度，但同时也带来了巨大的内存开销。现有系统中，KV Cache的内存占用可能达到数十GB，严重制约了模型的吞吐量、上下文长度和并发处理能力。此外，KV Cache的优化技术如MCP工具、KV缓存压缩技术等，以及弹性显存管理方法如eLLM，都是当前研究的重点。这些技术旨在平衡计算效率与内存消耗，以提高LLM推理的性能。",
+      "sources": [
+        {
+          "title": "LLM推理性能优化：KV Cache技术演进解析 - 开发技术 - 冷月清谈",
+          "url": "https://www.xinfinite.net/t/topic/13344"
+        },
+        {
+          "title": "KV缓存：LLM推理的“内存怪兽”与优化之道-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2547435"
+        },
+        {
+          "title": "探秘Transformer系列之（24）--- KV Cache优化 - 罗西的思考 - 博客园",
+          "url": "https://www.cnblogs.com/rossiXYZ/p/18811723"
+        },
+        {
+          "title": "长上下文不再难：KV Cache 全生命周期优化实战 - InfoQ",
+          "url": "https://www.infoq.cn/article/vvkdf9chrlqkqrtxqvxg"
+        },
+        {
+          "title": "大模型推理显存优化系列(4)：eLLM-大模型推理中的弹性显存管理和优化-阿里云开发者社区",
+          "url": "https://developer.aliyun.com/article/1679414"
+        }
+      ]
+    }
+  ]
+}

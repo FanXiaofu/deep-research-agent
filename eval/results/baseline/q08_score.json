@@ -1,0 +1,24 @@
+{
+  "id": "q08",
+  "category": "工具选型",
+  "question": "Tavily、Serper、Bing Search API 三个搜索 API 各有什么优劣",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "具体对比Tavily和Serper在性能方面缺乏直接数据支持",
+    "具体对比Tavily和Serper在安全性方面缺乏直接数据支持"
+  ],
+  "coverage": 4,
+  "missing": [
+    "成本方面缺乏直接数据支持"
+  ],
+  "citation_quality": 3,
+  "n_citations": 7,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 7,
+  "llm_calls": 6,
+  "input_tokens": 6618,
+  "output_tokens": 1332,
+  "cost_usd_est": 0.0033,
+  "elapsed_s": 105.2
+}

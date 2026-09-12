@@ -1,0 +1,19 @@
+{
+  "id": "q04",
+  "category": "概念解释",
+  "question": "MCP 协议是什么，它解决了什么问题",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 56,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 14,
+  "llm_calls": 6,
+  "input_tokens": 7853,
+  "output_tokens": 1185,
+  "cost_usd_est": 0.0034,
+  "elapsed_s": 91.5
+}

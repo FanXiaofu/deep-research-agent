@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析2025-2026年大模型参数高效微调的主流方法。\n覆盖维度：方法介绍、应用场景、优缺点比较。\n产出形式：研究报告。",
+  "subquestions": [
+    "2025-2026年大模型参数高效微调的主流方法介绍",
+    "2025-2026年大模型参数高效微调的应用场景及优缺点比较"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的主流方法介绍",
+      "content": "2025-2026年大模型参数高效微调的主流方法包括全微调（Full Fine-Tuning）、部分微调（Partial Fine-Tuning）、参数高效微调（Parameter-Efficient Fine-Tuning, PEFT）如Adapter Tuning和Prefix Tuning。PEFT通过冻结大部分模型参数，仅调整少量参数或增加额外参数，以较低成本适应下游任务。其中，LoRA和QLoRA是PEFT的具体实现，通过在参数矩阵旁边新增旁路，减少训练计算开销。Prefix Tuning则在模型外部增加前缀向量，引导模型生成符合任务需求的内容。这些方法在资源有限的条件下，能够有效提升模型性能。",
+      "sources": [
+        {
+          "title": "16种大模型主流微调方法 - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7584046632165982254"
+        },
+        {
+          "title": "大模型微调技术汇总 - Kenger`s Blog",
+          "url": "https://kengerlwl.github.io/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E5%BE%AE%E8%B0%83%E6%8A%80%E6%9C%AF%E6%B1%87%E6%80%BB"
+        },
+        {
+          "title": "大语言模型微调指引 - 阿里云文档",
+          "url": "https://help.aliyun.com/zh/pai/llm-fine-tuning-experience"
+        },
+        {
+          "title": "【2025最新】冲击年薪50W必会Agent性能微调，小白轻松掌握 ...",
+          "url": "https://www.youtube.com/watch?v=TaimM9pGNbM"
+        },
+        {
+          "title": "base-llm/docs/chapter11/01_PEFT.md at main · datawhalechina/base-llm · GitHub",
+          "url": "https://github.com/datawhalechina/base-llm/blob/main/docs/chapter11/01_PEFT.md"
+        }
+      ]
+    },
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的应用场景及优缺点比较",
+      "content": "2025-2026年，大模型微调技术从全参数微调发展到参数高效微调，如LoRA、QLoRA等方法。参数高效微调通过调整模型部分参数，显著降低了计算和存储需求，适用于资源有限的场景。LoRA是主流技术之一，通过低秩分解减少需要调整的参数数量。QLoRA进一步通过量化降低需求。此外，还有Adapter、Prefix Tuning等技术。全参数微调虽然性能更优，但资源消耗大，仅适用于计算资源充足的场景。PEFT技术在保持性能的同时，大幅降低了微调成本。研究显示，LoRA和QLoRA在大多数应用场景中提供了最佳的性能-资源权衡。[56_大模型微调：全参数与参数高效方法对比](https://developer.aliyun.com/article/1683997)，[LLM微调技术：从LoRA到QLoRA的演进](https://developer.cloud.tencent.com/article/2611321)，[大模型参数高效微调方法综述: 技术、趋势与挑战](https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451?viewType=HTML)",
+      "sources": [
+        {
+          "title": "56_大模型微调：全参数与参数高效方法对比",
+          "url": "https://developer.aliyun.com/article/1683997"
+        },
+        {
+          "title": "LLM微调技术：从LoRA到QLoRA的演进 - 腾讯云开发者社区",
+          "url": "https://developer.cloud.tencent.com/article/2611321"
+        },
+        {
+          "title": "大模型参数高效微调方法综述: 技术、趋势与挑战",
+          "url": "https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451?viewType=HTML"
+        },
+        {
+          "title": "什么是参数高效微调（PEFT）？",
+          "url": "https://www.redhat.com/zh-cn/topics/ai/what-is-peft"
+        },
+        {
+          "title": "炼石成丹：大语言模型微调实战系列（二）模型微调篇 | 亚马逊AWS官方博客",
+          "url": "https://aws.amazon.com/cn/blogs/china/practical-series-on-fine-tuning-large-language-models-part-two"
+        }
+      ]
+    }
+  ]
+}

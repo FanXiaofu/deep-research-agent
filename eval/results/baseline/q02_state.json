@@ -1,0 +1,114 @@
+{
+  "brief": "研究目标：探究 Agentic RAG 的定义及其与传统 RAG 的核心区别。\n覆盖维度：定义、功能特点、应用场景、技术实现、优缺点对比。\n产出形式：研究报告或总结文档。",
+  "subquestions": [
+    "Agentic RAG的定义及其功能特点",
+    "Agentic RAG与传统RAG的应用场景和技术实现对比"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "Agentic RAG与传统RAG的技术实现机制有何具体差异？",
+      "content": "传统RAG与Agentic RAG的核心差异在于架构设计与工作流程。传统RAG是被动式、线性的检索系统，采用'先检索、后生成'的固定流程，通过向量数据库一次性检索文档片段后拼接提示生成回答，适用于简单知识问答场景。而Agentic RAG是主动式、自主的决策系统，将LLM视为智能体，引入推理、规划、工具调用和迭代反馈机制，形成'思考-行动-观察'的动态循环，能处理复杂任务。Agentic RAG的实现通常基于LangChain、LlamaIndex等框架，支持多工具调用和自主规划，但架构复杂度显著提升。关键差异总结如下：\n\n| **对比维度** | **传统RAG** | **Agentic RAG** |\n|--------------|--------------|-----------------|\n| **架构类型** | 被动式、线性流水线 | 主动式、动态控制循环 |\n| **工作流程** | 一次性检索→拼接提示→生成 | 多轮迭代的思考-行动-观察循环 |\n| **决策能力** | 无自主规划 | 支持推理、工具调用、反思 |\n| **适用场景** | 简单知识问答 | 复杂任务解决 |\n| **实现框架** | 基础向量库 | LangChain/LlamaIndex等 |\n\n[1] 传统RAG与Agentic RAG的架构演进与差异分析 | morty的个人博客 | https://www.silenceboy.com/2026/03/18/%E4%BC%A0%E7%BB%9FRAG%E4%B8%8EAgentic-RAG%E7%9A%84%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E4%B8%8E%E5%B7%AE%E5%BC%82%E5%88%86%E6%9E%90/index.html",
+      "sources": [
+        {
+          "title": "传统RAG与Agentic RAG的架构演进与差异分析 | morty的个人博客",
+          "url": "https://www.silenceboy.com/2026/03/18/%E4%BC%A0%E7%BB%9FRAG%E4%B8%8EAgentic-RAG%E7%9A%84%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E4%B8%8E%E5%B7%AE%E5%BC%82%E5%88%86%E6%9E%90/index.html"
+        },
+        {
+          "title": "一文读懂传统 RAG 与 Agentic RAG 的技术差异与实战应用_agentic rag和普通rag的区别-CSDN博客",
+          "url": "https://blog.csdn.net/EnjoyEDU/article/details/151644174"
+        },
+        {
+          "title": "传统RAG和Agentic RAG之间的区别及各自适用场景（ChatGPT-4o回答）_agentic rag 特点-CSDN博客",
+          "url": "https://blog.csdn.net/weixin_41338279/article/details/145595547"
+        },
+        {
+          "title": "一图看懂传统 RAG 与 Agentic RAG 的实战差异，大模型入门到精通，收藏这篇就足够了！",
+          "url": "https://blog.csdn.net/2301_81940605/article/details/150575774"
+        },
+        {
+          "title": "大模型学习干货：一图看懂传统 RAG 与 Agentic RAG 实战差异，小白也能秒理解",
+          "url": "https://blog.csdn.net/z987421/article/details/153043512"
+        }
+      ]
+    },
+    {
+      "subquestion": "Agentic RAG在实际应用场景中相比传统RAG的核心优势与局限性是什么？",
+      "content": "Agentic RAG相比传统RAG的核心优势在于其自主规划与迭代优化能力。传统RAG遵循'检索-上下文-生成'的线性流程，难以处理多步骤推理和动态任务；而Agentic RAG通过智能体（Agent）实现动态检索策略、上下文迭代优化和多工具协作，显著提升复杂场景下的任务质量。例如，在金融分析中，Agentic RAG能自主拆解任务、协调多源数据检索，避免传统RAG因上下文整合不足导致的错误。其局限性包括：多智能体架构的协调复杂性、计算开销增加、高并发场景下的可扩展性压力。研究显示，Agentic RAG在客户支持、金融领域表现突出，但需平衡动态性与资源消耗。关键结论：Agentic RAG通过代理自主能力解决传统RAG的多步推理与上下文整合瓶颈，但面临工程化挑战。[1](https://www.cnblogs.com/JCpeng/p/19140935) [2](https://zhuanlan.zhihu.com/p/1952076996965307597) [3](https://masutangu.com/2025/02/27/paper-note-agentic-rag)",
+      "sources": [
+        {
+          "title": "Agentic RAG对比传统RAG的优势- Jcpeng_std",
+          "url": "https://www.cnblogs.com/JCpeng/p/19140935"
+        },
+        {
+          "title": "2025 代理式 RAG （Agentic RAG）综述",
+          "url": "https://zhuanlan.zhihu.com/p/1952076996965307597"
+        },
+        {
+          "title": "【论文笔记】Agentic Retrieval-Augmented Generation - A Survey on Agentic RAG - Masutangu 的博客 | Masutangu Blog",
+          "url": "https://masutangu.com/2025/02/27/paper-note-agentic-rag"
+        },
+        {
+          "title": "傻傻分不清？一文彻底说清Agentic RAG的前世今生！ - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7446997455570206758"
+        },
+        {
+          "title": "最全梳理：一文搞懂RAG技术的5种范式！ - 智源社区",
+          "url": "https://hub.baai.ac.cn/view/43613"
+        }
+      ]
+    },
+    {
+      "subquestion": "Agentic RAG的定义及其功能特点",
+      "content": "Agentic RAG 是一种先进的 AI 架构，通过集成自主 AI 代理来增强传统的检索系统。与标准的 RAG 管道不同，Agentic RAG 使大型语言模型（LLM）能够作为智能协调者，独立分析用户提示，决定是否需要外部信息，形成多个搜索查询，评估检索数据，并迭代优化研究，直至生成全面准确的答案。这种架构允许系统动态地跨各种数据库、API 和分析工具路由查询，显著减少了处理复杂多步骤问题时 LLM 的幻觉现象。Agentic RAG 的核心在于其循环和推理能力，使 AI 代理能够自主判断何时检索、查询哪些工具或来源以及是否已获得足够的信息。这种机制使得 Agentic RAG 能够处理比传统 RAG 更复杂的问题。[Agentic RAG: AI Agent 結合 RAG 新架構](https://www.largitdata.com/knowledge/agentic-rag)",
+      "sources": [
+        {
+          "title": "What is Agentic RAG? AI Agents & Retrieval | Ultralytics",
+          "url": "https://www.ultralytics.com/glossary/agentic-rag"
+        },
+        {
+          "title": "What is agentic RAG? A developer’s guide",
+          "url": "https://neo4j.com/blog/agentic-ai/what-is-agentic-rag"
+        },
+        {
+          "title": "What is Agentic RAG? | IBM",
+          "url": "https://www.ibm.com/think/topics/agentic-rag"
+        },
+        {
+          "title": "什麼是Agentic RAG？AI Agent 結合RAG 新架構",
+          "url": "https://www.largitdata.com/knowledge/agentic-rag"
+        },
+        {
+          "title": "Agentic RAG Platform for AI Agents and LLMs | Progress Agentic RAG",
+          "url": "https://www.progress.com/agentic-rag"
+        }
+      ]
+    },
+    {
+      "subquestion": "Agentic RAG与传统RAG的应用场景和技术实现对比",
+      "content": "Agentic RAG 是一种结合了AI智能体自主能力的RAG技术，相较于传统RAG，它能够处理更复杂的场景，具有更强的适应性和任务质量。Agentic RAG的核心在于引入智能体进行自主规划、决策和执行，而传统RAG则遵循固定的检索-上下文-生成流程。Agentic RAG特别适用于企业级数据环境和任务多样性的场景，而传统RAG则适用于数据环境简单、任务单一的场景。Agentic RAG通过多智能体架构或单智能体架构实现，能够更灵活地使用不同的检索技术。[傻傻分不清？一文彻底说清Agentic RAG的前世今生！](https://developer.volcengine.com/articles/7446997455570206758)",
+      "sources": [
+        {
+          "title": "Agentic RAG对比传统RAG的优势- Jcpeng_std",
+          "url": "https://www.cnblogs.com/JCpeng/p/19140935"
+        },
+        {
+          "title": "傻傻分不清？一文彻底说清Agentic RAG的前世今生！",
+          "url": "https://developer.volcengine.com/articles/7446997455570206758"
+        },
+        {
+          "title": "RAG vs Agentic RAG | Alex Xu",
+          "url": "https://www.linkedin.com/posts/alexxubyte_systemdesign-coding-interviewtips-activity-7344040591753678849-j-6J"
+        },
+        {
+          "title": "Traditional RAG vs. Agentic RAG—Why AI Agents Need Dynamic Knowledge to Get Smarter | NVIDIA Technical Blog",
+          "url": "https://developer.nvidia.com/blog/traditional-rag-vs-agentic-rag-why-ai-agents-need-dynamic-knowledge-to-get-smarter"
+        },
+        {
+          "title": "最全梳理：一文搞懂RAG技术的5种范式！",
+          "url": "https://hub.baai.ac.cn/view/43613"
+        }
+      ]
+    }
+  ]
+}
