@@ -1,9 +1,19 @@
-# 深度研究助手部署（可选）：docker compose up -d
-# - app:       研究助手 Web 界面 → http://localhost:8000
-# - langfuse:  可观测平台       → http://localhost:3000（注册后把 key 填入 .env）
+# 深度研究助手 + Langfuse 可观测（自托管 v3）
 #
-# 本地 Ollama 用户注意：容器内访问宿主机 Ollama 需取消 app 服务中
-# LLM_BASE_URL 的注释（host.docker.internal），并把 LLM_NATIVE_OLLAMA 保持为 1。
+# 启动：
+#   docker compose up -d langfuse-web     只启动 Langfuse（本地跑 app 时用这个，推荐）
+#   docker compose up -d                  启动全部（含容器化的 app）
+#   docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
+#                                         用完后停掉释放内存（数据保留在卷里）
+#
+# 访问：
+#   Langfuse  → http://localhost:3000   账号密码见 .env（LANGFUSE_INIT_USER_EMAIL / PASSWORD）
+#   Web 界面  → http://localhost:8000
+#
+# 说明：
+#   - Langfuse v3 架构需要 6 个组件，常驻约 2~4GB 内存，按需启停即可
+#   - 项目/组织/密钥由 LANGFUSE_INIT_* 自动创建，首次启动即可用，无需手动注册
+#   - 密钥通过 .env 注入（.env 已被 gitignore），仓库里不出现任何凭据
 
 services:
   app:
@@ -15,38 +25,158 @@ services:
     env_file: .env
     environment:
       CHECKPOINT_DB: /app/data/checkpoints.db
-      # 本地 Ollama 用户取消注释：
+      # 容器内 app 走 compose 网络访问 Langfuse（本机跑 app 时用 .env 里的 localhost:3000）
+      LANGFUSE_HOST: http://langfuse-web:3000
+      # 容器内访问宿主机 Ollama 时取消注释：
       # LLM_BASE_URL: http://host.docker.internal:11434/v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
-    depends_on:
-      - langfuse
 
-  langfuse:
-    image: langfuse/langfuse:2
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: langfuse-web
     restart: unless-stopped
+    depends_on: &lf-depends-on
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@langfuse-db:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: please-change-me-to-a-random-string
-      SALT_KEY: please-change-me-too
-      TELEMETRY_ENABLED: "false"
-    depends_on:
-      - langfuse-db
+      <<: &lf-env
+        NEXTAUTH_URL: http://localhost:3000
+        DATABASE_URL: postgresql://postgres:postgres@postgres:5432/postgres
+        SALT: langfuse-local-salt
+        ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+        TELEMETRY_ENABLED: "false"
+        CLICKHOUSE_URL: http://clickhouse:8123
+        CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+        CLICKHOUSE_USER: clickhouse
+        CLICKHOUSE_PASSWORD: clickhouse
+        CLICKHOUSE_CLUSTER_ENABLED: "false"
+        REDIS_HOST: redis
+        REDIS_PORT: "6379"
+        REDIS_AUTH: langfuse-local-redis
+        LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+        LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+        LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+        LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+        LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+        LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+        LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+        LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: miniosecret
+        LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+        LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      NEXTAUTH_SECRET: langfuse-local-nextauth-secret
+      # 首次启动自动创建组织/项目/用户，密钥与 app 共用 .env 中同一对
+      LANGFUSE_INIT_ORG_ID: local-org
+      LANGFUSE_INIT_ORG_NAME: Local
+      LANGFUSE_INIT_PROJECT_ID: deep-research-agent
+      LANGFUSE_INIT_PROJECT_NAME: deep-research-agent
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-demo@local.dev}
+      LANGFUSE_INIT_USER_NAME: demo
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-Langfuse2026!}
 
-  langfuse-db:
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse-worker
+    restart: unless-stopped
+    depends_on: *lf-depends-on
+    environment:
+      <<: *lf-env
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.12
+    container_name: langfuse-clickhouse
+    restart: unless-stopped
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 1s
+
+  minio:
+    # 用官方 compose 指定的 chainguard 镜像；若拉取困难可换成 quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
+    container_name: langfuse-minio
+    restart: unless-stopped
+    entrypoint: sh
+    # 启动前创建 langfuse bucket
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniosecret
+    volumes:
+      - langfuse_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: langfuse-redis
+    restart: unless-stopped
+    command: >
+      --requirepass langfuse-local-redis
+      --maxmemory-policy noeviction
+    volumes:
+      - langfuse_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "langfuse-local-redis", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+
+  postgres:
     image: postgres:16-alpine
+    container_name: langfuse-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: langfuse
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
     volumes:
-      - langfuse_pgdata:/var/lib/postgresql/data
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
 volumes:
-  langfuse_pgdata:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_clickhouse_logs:
+  langfuse_minio_data:
+  langfuse_redis_data:

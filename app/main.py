@@ -96,31 +96,35 @@ def _report_event(state: dict, elapsed: float) -> str:
 
 
 def _stream(payload, cfg: dict, started: float):
-    """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。"""
-    try:
-        for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
-            if "__interrupt__" in update:
-                intr = update["__interrupt__"][0]
-                yield sse({
-                    "type": "interrupt",
-                    "thread_id": cfg["configurable"]["thread_id"],
-                    "brief": (intr.value or {}).get("brief", ""),
-                })
-                return
-            for node, out in update.items():
-                if node == "review_brief":
-                    continue  # 审核由 interrupt 事件负责
-                for ev in _describe(node, out):
-                    ev.update({
-                        "type": "node_done",
-                        "label": NODE_LABELS.get(node, node),
-                        "elapsed_s": round(time.time() - started, 1),
+    """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。
+
+    整轮研究包在 trace_context 里，Langfuse 中表现为一条 trace（含所有 LLM span）。
+    """
+    with observability.trace_context(cfg["configurable"]["thread_id"], trace_name="deep-research"):
+        try:
+            for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
+                if "__interrupt__" in update:
+                    intr = update["__interrupt__"][0]
+                    yield sse({
+                        "type": "interrupt",
+                        "thread_id": cfg["configurable"]["thread_id"],
+                        "brief": (intr.value or {}).get("brief", ""),
                     })
-                    yield sse(ev)
-        state = get_research_app().get_state(cfg).values or {}
-        yield _report_event(state, time.time() - started)
-    except Exception as exc:
-        yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+                    return
+                for node, out in update.items():
+                    if node == "review_brief":
+                        continue  # 审核由 interrupt 事件负责
+                    for ev in _describe(node, out):
+                        ev.update({
+                            "type": "node_done",
+                            "label": NODE_LABELS.get(node, node),
+                            "elapsed_s": round(time.time() - started, 1),
+                        })
+                        yield sse(ev)
+            state = get_research_app().get_state(cfg).values or {}
+            yield _report_event(state, time.time() - started)
+        except Exception as exc:
+            yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
 
 
 @app.get("/")
@@ -148,7 +152,6 @@ def research_stream(
     if rounds:
         config.MAX_SEARCH_ROUNDS = rounds
     tid = f"web-{datetime.now():%Y%m%d-%H%M%S}"
-    observability.init_session(tid)
     cfg = {"configurable": {"thread_id": tid}}
     payload = {"topic": topic, "notes": [], "require_review": review}
     USAGE.reset()
@@ -164,7 +167,6 @@ def research_stream(
 @app.get("/api/resume/stream")
 def resume_stream(thread_id: str = Query(...), value: str = ""):
     """human-in-the-loop：value 为空表示确认原任务书，非空表示替换。"""
-    observability.init_session(thread_id)
     cfg = {"configurable": {"thread_id": thread_id}}
     payload = Command(resume=value or "")
     started = time.time()

@@ -95,7 +95,6 @@ def main() -> None:
     except (RuntimeError, ValueError) as exc:
         raise SystemExit(f"[配置错误] {exc}")
 
-    observability.init_session(tid)
     app = build_research_app(make_checkpointer())
     thread_cfg = {"configurable": {"thread_id": tid}}
 
@@ -119,19 +118,24 @@ def main() -> None:
 
     started = time.time()
     try:
-        while True:
-            interrupted = False
-            for update in app.stream(payload, thread_cfg, stream_mode="updates"):
-                if "__interrupt__" in update:
-                    intr = update["__interrupt__"][0]
-                    answer = _prompt_review((intr.value or {}).get("brief", ""))
-                    payload = _resume_command(answer)
-                    interrupted = True
+        with observability.trace_context(
+            tid,
+            trace_name="deep-research",
+            metadata={"topic": args.topic or "", "resumed": bool(args.resume), "model": config.LLM_MODEL},
+        ):
+            while True:
+                interrupted = False
+                for update in app.stream(payload, thread_cfg, stream_mode="updates"):
+                    if "__interrupt__" in update:
+                        intr = update["__interrupt__"][0]
+                        answer = _prompt_review((intr.value or {}).get("brief", ""))
+                        payload = _resume_command(answer)
+                        interrupted = True
+                        break
+                    for node, out in update.items():
+                        _print_progress(node, out, started)
+                if not interrupted:
                     break
-                for node, out in update.items():
-                    _print_progress(node, out, started)
-            if not interrupted:
-                break
     except KeyboardInterrupt:
         print(f"\n⏹ 已手动中断，断点已保存。用 --resume {tid} 续跑")
         observability.flush()

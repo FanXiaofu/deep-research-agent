@@ -94,16 +94,30 @@ docker compose up -d
 
 更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)。
 
-## Langfuse 全链路追踪（可选）
+## Langfuse 全链路追踪
+
+### 启动（Windows 一键）
+
+双击 **`langfuse.bat`**：自动启动 6 个容器并在浏览器打开 `http://localhost:3000`。
+
+- 登录账号：`demo@local.dev`，密码见 `.env` 的 `LANGFUSE_INIT_USER_PASSWORD`
+- 其它命令：`langfuse.bat stop`（停止并释放内存）、`langfuse.bat status`、`langfuse.bat logs`
+
+### 启动（手动）
 
 ```bash
-docker compose up -d          # 启动自托管 Langfuse（localhost:3000）
-# 注册账号 → 创建项目 → 把 Public/Secret Key 填入 .env
-python cli.py "研究问题" --no-review
+docker compose up -d langfuse-web langfuse-worker   # 起 Langfuse（v3 架构）
+docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres   # 停止
 ```
 
-每次研究的所有节点 span、LLM 调用（含 token 用量/延迟）自动归入同一 session，
-可在 3000 端口可视化查看 Agent 的完整执行轨迹——这就是简历上"全链路可观测"的实证。
+### 说明
+
+- **无需手动注册**：首次启动时 `LANGFUSE_INIT_*` 环境变量会自动创建组织、项目、账号，密钥与 app 共用 `.env` 中的同一对，开箱即用。
+- **追踪结构**：一轮研究 = 一条 trace（根 span 名为 `deep-research`，类型 `agent`），内部每个 LLM 调用是一个 `llm.chat` 子 span，共享同一 `session_id`。在 UI 的 Sessions 页可按 session 查看完整协作过程，Sessions/Traces 页可查每次调用的 token 用量与延迟。
+- **资源占用**：6 个容器常驻约 2~4GB 内存，不用时 `langfuse.bat stop` 释放（数据保留在 docker 卷中）。
+- **版本匹配**：Python SDK 为 v4（走 OpenTelemetry 摄取），需要 Langfuse server ≥ 3.60，因此 compose 使用 `langfuse/langfuse:3` 与 `langfuse-worker:3`（两个镜像都要，worker 负责异步落库）。
+
+> 若想免部署，也可以注册 [Langfuse Cloud](https://cloud.langfuse.com)（有免费额度），把项目的 Public/Secret Key 填进 `.env` 的 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` 即可，无需 `ENCRYPTION_KEY`。
 
 ## 配置说明（.env）
 

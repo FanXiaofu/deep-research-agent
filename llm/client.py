@@ -76,7 +76,7 @@ def get_client() -> OpenAI:
     return _client
 
 
-@observability.observe
+@observability.observe(name="llm.chat")
 def chat(messages: list[dict], *, temperature: float | None = None, json_mode: bool = False) -> str:
     """单轮对话。json_mode=True 时要求模型输出 JSON（提示词里需包含"JSON"字样）。"""
     if config.LLM_PROMPT_SUFFIX:
