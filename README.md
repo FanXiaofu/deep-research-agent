@@ -41,6 +41,16 @@ Python 3.11 · LangGraph（状态机编排）· DeepSeek（OpenAI 兼容接口�
 
 虚拟环境统一放在 `E:\AIProject\environment\deep-research-agent-venv`。
 
+### Windows 一键启动（推荐）
+
+- **`start.bat`** — 双击即可：自动检查并拉起本地 Ollama → 打开浏览器 → 启动 Web 服务。按 `Ctrl+C` 停止。
+- **`research.bat "你的研究问题"`** — 命令行跑一次研究，报告存到 `reports/`。
+  - `research.bat "问题" --max-sub 4 --rounds 2`　指定子问题数与检索轮数
+  - `research.bat "问题" --no-review`　跳过人工审核，全自动
+  - `research.bat --resume`　崩溃/中断后从断点续跑
+
+### 手动方式
+
 ```bash
 # Git Bash 激活
 source /e/AIProject/environment/deep-research-agent-venv/Scripts/activate
