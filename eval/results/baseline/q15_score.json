@@ -1,0 +1,23 @@
+{
+  "id": "q15",
+  "category": "技术趋势",
+  "question": "10B 以下的小模型现在能胜任哪些生产级任务",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "小模型在CV任务中的具体性能指标与效率尚无直接评估"
+  ],
+  "coverage": 4,
+  "missing": [
+    "10B参数以下小模型在CV任务中的具体性能指标与效率评估"
+  ],
+  "citation_quality": 5,
+  "n_citations": 15,
+  "citation_validity": 1.0,
+  "source_utilization": 0.8,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 10384,
+  "output_tokens": 1298,
+  "cost_usd_est": 0.0042,
+  "elapsed_s": 68.9
+}

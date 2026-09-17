@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：分析2025-2026年大模型参数高效微调的主流方法。\n覆盖维度：方法概述、应用场景、性能指标、优缺点比较。\n产出形式：研究报告。",
+  "brief": "研究目标：分析2025-2026年大模型参数高效微调的主流方法。\n覆盖维度：方法概述、应用场景、性能评估、优缺点对比。\n产出形式：研究报告。",
   "subquestions": [
     "2025-2026年大模型参数高效微调的主要方法概述",
-    "2025-2026年大模型参数高效微调的应用场景与性能指标"
+    "2025-2026年大模型参数高效微调的应用场景及性能评估"
   ],
   "conflicts": [],
   "notes": [
@@ -91,6 +91,58 @@
         {
           "title": "GitHub - SwordHG/LLM-PEFT-: 本项目旨在分享大模型相关技术原理以及实战经验。 · GitHub",
           "url": "https://github.com/SwordHG/LLM-PEFT-"
+        }
+      ]
+    },
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的主要方法概述",
+      "content": "2025-2026年大模型参数高效微调的主要方法包括LoRA（低秩适应）和QLoRA（量化低秩适应）。这些方法通过冻结大部分预训练模型参数，仅调整少量可训练参数，从而提高微调效率并降低计算成本。PEFT（参数高效微调）方法适用于大型语言模型（LLM），能够平衡效率和性能。相关研究指出，PEFT方法可以显著提高针对特定应用场景的模型输出准确性和相关性，减少能源和云计算成本。[1](https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451) [2](https://zhuanlan.zhihu.com/p/621700272) [3](https://cloud.google.com/use-cases/fine-tuning-ai-models?hl=zh-CN) [4](https://www.ibm.com/cn-zh/think/topics/parameter-efficient-fine-tuning)",
+      "sources": [
+        {
+          "title": "大模型参数高效微调方法综述: 技术、趋势与挑战",
+          "url": "https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451"
+        },
+        {
+          "title": "大模型参数高效微调(PEFT) - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/621700272"
+        },
+        {
+          "title": "微调 LLM：概览和指南 | Google Cloud",
+          "url": "https://cloud.google.com/use-cases/fine-tuning-ai-models?hl=zh-CN"
+        },
+        {
+          "title": "什么是参数高效微调 (PEFT)？ | IBM",
+          "url": "https://www.ibm.com/cn-zh/think/topics/parameter-efficient-fine-tuning"
+        },
+        {
+          "title": "预见2025：《2025年中国大模型行业全景图谱》（附市场规模、竞争格局和发展趋势等） 提供者 前瞻网",
+          "url": "https://cn.investing.com/news/economy-news/article-2767537"
+        }
+      ]
+    },
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的应用场景及性能评估",
+      "content": "2025-2026年，大模型参数高效微调技术如LoRA、QLoRA等通过冻结预训练模型大部分参数，仅微调少量适配器参数，显著降低计算资源需求。微调技术能够将通用模型转变为专用模型，提高特定任务或领域上的性能。例如，阿里通义团队发布的MMDiT图像基础模型在复杂文本渲染和精确图像编辑领域实现了重大突破。此外，多模态大模型在数字人、游戏、广告商拍、社交媒体和智能营销等场景中展现出广泛应用潜力。然而，微调方案成本较高，对于一般机构或企业来说，可能不是最理想的选择。",
+      "sources": [
+        {
+          "title": "国内外知名大模型及应用——模型/应用维度（2026/09/09） - 知乎专栏",
+          "url": "https://zhuanlan.zhihu.com/p/670574382"
+        },
+        {
+          "title": "2026！深入了解 大语言模型（LLM）微调方法（总结）",
+          "url": "https://blog.csdn.net/m0_59485658/article/details/156725085"
+        },
+        {
+          "title": "2025年中国多模态大模型行业文娱媒体应用场景 多模态大模型提升文娱媒体创作效率【组图】 提供者 前瞻网",
+          "url": "https://cn.investing.com/news/economy-news/article-2813583"
+        },
+        {
+          "title": "大模型度身订造 两方案可供选择 | 香港科技大学商学院",
+          "url": "https://bm.hkust.edu.hk/zh-cn/school-in-media/2025/04/customizing-large-language-model-chinese-version-only"
+        },
+        {
+          "title": "AIGC专题三：国内大模型概览",
+          "url": "https://pdf.dfcfw.com/pdf/H3_AP202303081584111703_1.pdf"
         }
       ]
     }

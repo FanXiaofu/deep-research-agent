@@ -24,8 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 以脚本方式运行时把项目根目录加入可导入路径
 
 import config
+import observability
 from graph.build import build_research_app, make_checkpointer
-from judge import judge_report
+from judge import citation_checks, judge_report
 from llm.client import USAGE
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -71,64 +72,68 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
     started = time.time()
     row = {"id": q["id"], "category": q["category"], "question": q["question"]}
 
-    try:
-        final = app.invoke(
-            {"topic": q["question"], "notes": [], "require_review": False}, thread_cfg
+    # 整题（研究 + 评分）包成一条 trace，便于在 Langfuse 里按 session 回看
+    with observability.trace_context(
+        tid, trace_name="eval-research", metadata={"question": q["question"], "tag": tag}
+    ):
+        try:
+            final = app.invoke(
+                {"topic": q["question"], "notes": [], "require_review": False}, thread_cfg
+            )
+        except Exception as exc:
+            row["error"] = f"{type(exc).__name__}: {exc}"
+            row["elapsed_s"] = round(time.time() - started, 1)
+            return row
+
+        report = final.get("report", "")
+        notes = final.get("notes", [])
+        if not report:
+            row["error"] = "未生成报告"
+            return row
+
+        (out_dir / f"{q['id']}.md").write_text(report, encoding="utf-8")
+        (out_dir / f"{q['id']}_state.json").write_text(
+            json.dumps(
+                {
+                    "brief": final.get("brief", ""),
+                    "subquestions": final.get("subquestions", []),
+                    "conflicts": final.get("conflicts", []),
+                    "notes": notes,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
         )
-    except Exception as exc:
-        row["error"] = f"{type(exc).__name__}: {exc}"
-        row["elapsed_s"] = round(time.time() - started, 1)
-        return row
 
-    report = final.get("report", "")
-    notes = final.get("notes", [])
-    if not report:
-        row["error"] = "未生成报告"
-        return row
-
-    (out_dir / f"{q['id']}.md").write_text(report, encoding="utf-8")
-    (out_dir / f"{q['id']}_state.json").write_text(
-        json.dumps(
+        n_refs = count_refs(report)
+        usage = USAGE.snapshot()
+        cost = (
+            usage["input_tokens"] / 1e6 * config.LLM_PRICE_INPUT_PER_M
+            + usage["output_tokens"] / 1e6 * config.LLM_PRICE_OUTPUT_PER_M
+        )
+        scores = judge_report(
+            question=q["question"],
+            brief=final.get("brief", ""),
+            subquestions=final.get("subquestions", []),
+            report=report,
+            notes=notes,
+            n_refs=n_refs,
+        )
+        row.update(scores)
+        row.update(
             {
-                "brief": final.get("brief", ""),
-                "subquestions": final.get("subquestions", []),
-                "conflicts": final.get("conflicts", []),
-                "notes": notes,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-
-    n_refs = count_refs(report)
-    usage = USAGE.snapshot()
-    cost = (
-        usage["input_tokens"] / 1e6 * config.LLM_PRICE_INPUT_PER_M
-        + usage["output_tokens"] / 1e6 * config.LLM_PRICE_OUTPUT_PER_M
-    )
-    scores = judge_report(
-        question=q["question"],
-        brief=final.get("brief", ""),
-        subquestions=final.get("subquestions", []),
-        report=report,
-        notes=notes,
-        n_refs=n_refs,
-    )
-    row.update(scores)
-    row.update(
-        {
-            "n_refs": n_refs,
-            "llm_calls": usage["calls"],
-            "input_tokens": usage["input_tokens"],
-            "output_tokens": usage["output_tokens"],
-            "cost_usd_est": round(cost, 4),
-            "elapsed_s": round(time.time() - started, 1),
-        }
-    )
-    (out_dir / f"{q['id']}_score.json").write_text(
-        json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+                "n_refs": n_refs,
+                "llm_calls": usage["calls"],
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
+                "cost_usd_est": round(cost, 4),
+                "elapsed_s": round(time.time() - started, 1),
+            }
+        )
+        (out_dir / f"{q['id']}_score.json").write_text(
+            json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     return row
 
 
@@ -173,6 +178,7 @@ def evaluate(args) -> None:
         )
 
     write_summary_md(summary, out_dir)
+    observability.flush()
     print(f"\n== 完成：{out_dir / 'summary.md'} ==", flush=True)
 
 
@@ -268,6 +274,49 @@ def compare(tag_a: str, tag_b: str) -> None:
     print(f"== 对比已生成：{out} ==", flush=True)
 
 
+def recompute(tag: str) -> None:
+    """用当前（修复后）的确定性校验规则重算既有批次的引用指标，无需重跑研究。
+
+    适用场景：citation_checks 的正则/口径修好后，历史批次的报告文本本身没变，
+    只需重算派生指标即可保持数据一致。
+    """
+    out_dir = RESULTS_DIR / tag
+    summary_path = out_dir / "summary.json"
+    if not summary_path.exists():
+        raise SystemExit(f"缺少 {summary_path}，先跑该批次")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    changed = 0
+    for row in summary["rows"]:
+        if row.get("error"):
+            continue
+        report_path = out_dir / f"{row['id']}.md"
+        if not report_path.exists():
+            continue
+        report = report_path.read_text(encoding="utf-8")
+        n_refs = count_refs(report)
+        fresh = citation_checks(report, n_refs)
+        fresh["n_refs"] = n_refs
+        for key, value in fresh.items():
+            if row.get(key) != value:
+                changed += 1
+            row[key] = value
+        (out_dir / f"{row['id']}_score.json").write_text(
+            json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    summary["means"] = {
+        k: mean(summary["rows"], k)
+        for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]
+    }
+    summary["recomputed_at"] = datetime.now().isoformat(timespec="seconds")
+    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_summary_md(summary, out_dir)
+    print(
+        f"== {tag} 重算完成：{changed} 项指标修正 | 引用有效性均值 = {summary['means']['citation_validity']} "
+        f"| 来源利用率 = {summary['means']['source_utilization']}",
+        flush=True,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="深度研究助手评测")
     parser.add_argument("--tag", help="批次名（baseline / tuned ...）")
@@ -276,6 +325,7 @@ def main() -> None:
     parser.add_argument("--max-sub", type=int, help="覆盖 config.MAX_SUBQUESTIONS（两批次需一致）")
     parser.add_argument("--rounds", type=int, help="覆盖 config.MAX_SEARCH_ROUNDS")
     parser.add_argument("--compare", nargs=2, metavar=("TAG_A", "TAG_B"), help="生成两个批次的对比报告")
+    parser.add_argument("--recompute", metavar="TAG", help="按修复后的规则重算既有批次的确定性指标")
     args = parser.parse_args()
 
     if args.max_sub:
@@ -283,12 +333,14 @@ def main() -> None:
     if args.rounds:
         config.MAX_SEARCH_ROUNDS = args.rounds
 
-    if args.compare:
+    if args.recompute:
+        recompute(args.recompute)
+    elif args.compare:
         compare(args.compare[0], args.compare[1])
     elif args.tag:
         evaluate(args)
     else:
-        parser.error("需要 --tag 或 --compare")
+        parser.error("需要 --tag、--compare 或 --recompute")
 
 
 if __name__ == "__main__":

@@ -10,10 +10,10 @@
   "n_citations": 0,
   "citation_validity": 0.0,
   "source_utilization": 0.0,
-  "n_refs": 12,
+  "n_refs": 16,
   "llm_calls": 6,
-  "input_tokens": 6449,
-  "output_tokens": 1035,
-  "cost_usd_est": 0.0029,
-  "elapsed_s": 177.1
+  "input_tokens": 10594,
+  "output_tokens": 1137,
+  "cost_usd_est": 0.0041,
+  "elapsed_s": 61.9
 }

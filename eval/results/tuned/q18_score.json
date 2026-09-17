@@ -1,0 +1,24 @@
+{
+  "id": "q18",
+  "category": "技术趋势",
+  "question": "AI 编程助手 Copilot、Claude Code、Cursor 的工作原理有什么不同",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "Claude Code 和 Copilot 在技术架构上的具体差异并未明确指出",
+    "Cursor 和 Claude Code 在大型代码库的处理上存在差异，但具体表现未在笔记中详细比较"
+  ],
+  "coverage": 4,
+  "missing": [
+    "Copilot的具体价格与使用成本未详细说明"
+  ],
+  "citation_quality": 4,
+  "n_citations": 18,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 9,
+  "llm_calls": 6,
+  "input_tokens": 11143,
+  "output_tokens": 1283,
+  "cost_usd_est": 0.0044,
+  "elapsed_s": 69.8
+}

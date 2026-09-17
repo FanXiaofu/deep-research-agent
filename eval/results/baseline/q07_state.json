@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：分析LLM推理中KV缓存的工作原理及其对显存占用的影响，探索优化策略。\n覆盖维度：缓存机制、显存管理、性能优化技术。\n产出形式：研究报告，包含理论分析、实验结果及优化建议。",
+  "brief": "研究目标：分析LLM推理中KV Cache的工作原理及其对显存占用的影响，探索优化策略。\n覆盖维度：定义、功能、性能影响、优化方法。\n产出形式：研究报告，包含定义、原理分析、案例研究及优化建议。",
   "subquestions": [
-    "分析LLM推理中KV缓存的工作原理及其对显存占用的影响",
-    "探索缓存机制、显存管理及性能优化技术在LLM推理中的应用"
+    "LLM推理中KV Cache的定义及其功能",
+    "KV Cache对LLM推理显存占用的影响及优化方法"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "大模型推理显存优化系列(4)：eLLM-大模型推理中的弹性显存管理和优化-阿里云开发者社区",
           "url": "https://developer.aliyun.com/article/1679414"
+        }
+      ]
+    },
+    {
+      "subquestion": "LLM推理中KV Cache的定义及其功能",
+      "content": "KV Cache 是在LLM推理过程中缓存自注意力层的中间结果（键和值），以避免重复计算。它通过缓存历史token的Key和Value，使得每次生成新token时只需计算新的query向量与缓存的Key/Value进行注意力计算，从而将时间复杂度从O(n²)降低到O(n)。KV Cache在多个主流推理框架中被广泛使用，如vLLM、TensorRT-LLM等。它虽然提高了推理效率，但也带来了显存压力。",
+      "sources": [
+        {
+          "title": "LLM 推理 KV Cache 分布式缓存方案 · apache/dubbo-go-pixiu · Discussion #860 · GitHub",
+          "url": "https://github.com/apache/dubbo-go-pixiu/discussions/860"
+        },
+        {
+          "title": "手撕大模型｜KVCache 原理及代码解析 - 地平线智能驾驶开发者 - 博客园",
+          "url": "https://www.cnblogs.com/horizondeveloper/p/19089780"
+        },
+        {
+          "title": "玩转大语言模型：深入理解 KV-Cache - 大模型推理的核心加速技术 | Wilson Wu",
+          "url": "https://wilsonwu.me/blog/2025/kv-cache-in-llm"
+        },
+        {
+          "title": "LLM 推理加速技术(1)：KV Cache - MartinLwx's Blog",
+          "url": "https://martinlwx.github.io/zh-cn/llm-inference-optimization-kv-cache"
+        },
+        {
+          "title": "推理加速：KV Cache、量化與 vLLM｜AI 互動教室",
+          "url": "https://www.youtube.com/watch?v=zLF0Gtm2ETg"
+        }
+      ]
+    },
+    {
+      "subquestion": "KV Cache对LLM推理显存占用的影响及优化方法",
+      "content": "KV Cache在LLM推理中占据大量显存，尤其在长序列生成和多请求处理中影响显著。现有系统可能浪费60%-80%的显存，主要浪费在KV Cache上。KV Cache优化方法包括MQA/GQA、StreamingLLM等，但这些方法在模型训练阶段设定，若模型已训练完成则效果不佳。此外，KV Cache的显存占用计算公式为$2 \times 4nh + 2 \times 16$字节，其中$n$为解码层数量，$h$为头数。文献[5]提出了一种优化策略，通过存储向量的方向和缩放因子，实现高效推理。",
+      "sources": [
+        {
+          "title": "探秘Transformer系列之（24）--- KV Cache优化 - 罗西的思考 - 博客园",
+          "url": "https://www.cnblogs.com/rossiXYZ/p/18811723"
+        },
+        {
+          "title": "LLM(20)：漫谈KV Cache 优化方法，深度理解StreamingLLM",
+          "url": "https://zhuanlan.zhihu.com/p/659770503"
+        },
+        {
+          "title": "AI-fundamentals/09_inference_system/kv_cache/01_concepts/basic/kv_cache_basics.md at main · ForceInjection/AI-fundamentals · GitHub",
+          "url": "https://github.com/ForceInjection/AI-fundamentals/blob/main/09_inference_system/kv_cache/01_concepts/basic/kv_cache_basics.md"
+        },
+        {
+          "title": "kv-cache 原理及优化概述 - Zhang",
+          "url": "https://www.armcvai.cn/2024-11-01/kv-cache-optimize.html"
+        },
+        {
+          "title": "[PDF] kv cache optimization strategies for scalable - arXiv",
+          "url": "https://arxiv.org/pdf/2603.20397"
         }
       ]
     }

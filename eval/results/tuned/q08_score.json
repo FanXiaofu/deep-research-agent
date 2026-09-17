@@ -4,22 +4,23 @@
   "question": "Tavily、Serper、Bing Search API 三个搜索 API 各有什么优劣",
   "faithfulness": 4,
   "unsupported_claims": [
-    "Tavily在延迟和中文搜索质量方面表现较好",
-    "Serper则在功能丰富性上有所欠缺"
+    "Tavily专为AI代理设计，性能较好，但国内访问偶有波动，价格较高。",
+    "Serper功能全面，支持多种搜索类型，但需要API Key，价格较低。",
+    "Bing Search API已退役，推荐使用替代方案如Tavily。"
   ],
   "coverage": 4,
   "missing": [
-    "具体性能数据对比",
-    "详细安全性分析"
+    "稳定性",
+    "价格"
   ],
-  "citation_quality": 4,
-  "n_citations": 32,
+  "citation_quality": 5,
+  "n_citations": 33,
   "citation_validity": 1.0,
   "source_utilization": 1.0,
-  "n_refs": 7,
+  "n_refs": 9,
   "llm_calls": 6,
-  "input_tokens": 8959,
-  "output_tokens": 1112,
-  "cost_usd_est": 0.0036,
-  "elapsed_s": 73.6
+  "input_tokens": 11834,
+  "output_tokens": 1483,
+  "cost_usd_est": 0.0048,
+  "elapsed_s": 74.3
 }

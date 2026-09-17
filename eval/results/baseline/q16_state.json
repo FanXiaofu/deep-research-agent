@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析LLM的结构化输出及其主流实现方式。\n覆盖维度：定义结构化输出、实现方式、应用场景、优缺点。\n产出形式：研究报告，包含概览、详细分析、结论与建议。",
+  "subquestions": [
+    "分析LLM的结构化输出定义及其应用场景",
+    "研究LLM主流实现方式的优缺点"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "分析LLM的结构化输出定义及其应用场景",
+      "content": "从LLMs获取结构化输出是指通过定义的结构模式来约束语言模型的响应，如JSON或特定编程语言类。这种方法在函数调用、API交互和外部集成中特别有用。大多数LLM提供商现在支持基于Schema的函数调用，允许开发人员提供JSON Schema、pydantic或Zod对象来约束模型响应。这种技术提高了生产环境中LLM输出的可靠性，但仍然存在一些挑战，如模型可能意外地产生格式错误或包含错误的字符串。结构化输出对于构建可靠的数据管道至关重要，特别是在需要高度一致性和准确性的任务中。",
+      "sources": [
+        {
+          "title": "Structured output from LLMs | Technology Radar | Thoughtworks China",
+          "url": "https://www.thoughtworks.com/zh-cn/radar/techniques/structured-output-from-llms"
+        },
+        {
+          "title": "结构化生成：提升生产环境中 LLM 输出的可信度",
+          "url": "https://tianpan.co/zh/blog/2026/03/03/structured-generation-reliable-llm-output"
+        },
+        {
+          "title": "万字长文｜大模型结构化输出完全指南：从Prompt到API的6大核心技术（收藏必学）_人工智能_小涂Ss-ModelEngine社区",
+          "url": "https://modelengine.csdn.net/690c53085511483559e2b433.html"
+        },
+        {
+          "title": "结构化输出（Structured Outputs） - PPIO 派欧云文档中心",
+          "url": "https://ppio.com/docs/model/llm-structured-outputs"
+        },
+        {
+          "title": "利用生成式 AI 技术构建结构化信息提取任务的应用与实践 | 亚马逊AWS官方博客",
+          "url": "https://aws.amazon.com/cn/blogs/china/use-generative-ai-to-construct-structured-information-extraction-tasks"
+        }
+      ]
+    },
+    {
+      "subquestion": "研究LLM主流实现方式的优缺点",
+      "content": "大型语言模型（LLM）通过预测下一个字来生成回答，优点包括减少幻觉和引用最新资料，但依赖于检索质量。另一种方式是让LLM自己决定执行API调用或代码执行，使其能‘动手做事’。此外，LLM存在AI幻觉和知识更新延迟的问题。这些信息来自[1]和[3]。",
+      "sources": [
+        {
+          "title": "什麼是語言模型(LLM)?為什麼 AI 一直在提它?一次看懂底層原理與主流模型 | AI 工具教學系列 | 前網數位資訊",
+          "url": "https://www.cianwang.com/news/ai-marketing-trends/llm"
+        },
+        {
+          "title": "胡姣、祝智庭、姜浩哲：大语言模型赋能数据驱动教学决策的理论框架与实证研究 - 中国教育科学研究院",
+          "url": "https://www.cnaes.edu.cn/post/151158"
+        },
+        {
+          "title": "LLM入門必讀！解析大型語言模型運作原理、3階段訓練、4應用分享 - ADBest：不只流量，我們更在乎留量",
+          "url": "https://adbest.com.tw/blog/large-language-model-guide"
+        },
+        {
+          "title": "什么是分层推理模型？| IBM",
+          "url": "https://www.ibm.com/cn-zh/think/topics/hierarchical-reasoning-model"
+        },
+        {
+          "title": "大语言模型的优势和限制  |  web.dev",
+          "url": "https://web.dev/articles/ai-llms-benefits?hl=zh-cn"
+        }
+      ]
+    }
+  ]
+}

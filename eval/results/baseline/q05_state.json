@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：比较 Milvus 和 Qdrant 作为向量数据库的优劣。\n\n需覆盖维度：功能特性、性能表现、易用性、社区支持、成本效益。\n\n期望产出：一份对比报告，包含两者的详细分析与推荐。",
+  "brief": "研究目标：评估 Milvus 和 Qdrant 作为向量数据库的优劣。\n覆盖维度：性能、扩展性、易用性、成本、社区支持。\n产出形式：对比报告。",
   "subquestions": [
-    "比较 Milvus 和 Qdrant 的功能特性",
-    "分析 Milvus 和 Qdrant 的性能表现、易用性、社区支持和成本效益"
+    "评估Milvus和Qdrant在性能方面的优劣",
+    "评估Milvus和Qdrant在成本方面的优劣"
   ],
   "conflicts": [],
   "notes": [
@@ -107,6 +107,58 @@
         {
           "title": "Milvus、Qdrant 和Chroma 向量数据库对比-腾讯云开发者社区",
           "url": "https://cloud.tencent.com/developer/article/2490862"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估Milvus和Qdrant在性能方面的优劣",
+      "content": "Milvus和Qdrant都是高性能的向量数据库，适用于AI和机器学习应用。Milvus在高并发和低延迟的向量相似度搜索方面表现出色，支持多种索引和度量方式，适合大规模数据处理。Qdrant则以其先进的过滤系统和云原生架构见长，适合复杂查询和大规模数据集。根据多个来源，Milvus在性能、灵活性和实际可扩展性方面略胜一筹。[Milvus vs Qdrant: Vector Database Performance Comparison](https://myscale.com/blog/milvus-vs-qdrant-vector-database-performance) [Qdrant vs Milvus:A Brutal Dissection of Two Vector Databases in the AI Arena](https://medium.com/@aefselinates/qdrant-vs-milvus-a-brutal-dissection-of-two-vector-databases-in-the-ai-arena-e6ccd708e3c1) [Milvus vs Qdrant | 向量数据库全面对比与选型指南](https://zilliz.com.cn/comparison/milvus-vs-qdrant)",
+      "sources": [
+        {
+          "title": "Milvus vs Qdrant: Vector Database Performance Comparison",
+          "url": "https://myscale.com/blog/milvus-vs-qdrant-vector-database-performance"
+        },
+        {
+          "title": "Qdrant vs Milvus:A Brutal Dissection of Two Vector ...",
+          "url": "https://medium.com/@aefselinates/qdrant-vs-milvus-a-brutal-dissection-of-two-vector-databases-in-the-ai-arena-e6ccd708e3c1"
+        },
+        {
+          "title": "Milvus vs Qdrant | 向量数据库全面对比与选型指南",
+          "url": "https://zilliz.com.cn/comparison/milvus-vs-qdrant"
+        },
+        {
+          "title": "向量数据库对比:Weaviate、Milvus和Qdrant - 逐水寻源",
+          "url": "https://www.zair.top/post/vector-database-compare"
+        },
+        {
+          "title": "向量数据库选型：从Chroma到Milvus，企业场景怎么选 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2664756"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估Milvus和Qdrant在成本方面的优劣",
+      "content": "Milvus在成本方面具有优势，因为它作为开源项目，提供用户完全控制成本的灵活性，并且可以在自建环境中部署，而Qdrant则仅提供云服务，可能增加成本负担。Milvus还支持大规模向量数据的存储与检索，提供低延迟、高并发的向量相似度搜索，适合构建高性能的向量检索基础设施。根据实际测试，Milvus在大规模向量数据处理上表现更佳，而Qdrant则在查询灵活性方面有优势。[1](https://medium.com/@aefselinates/qdrant-vs-milvus-a-brutal-dissection-of-two-vector-databases-in-the-ai-arena-e6ccd708e3c1) [2](https://zilliz.com.cn/comparison/milvus-vs-qdrant) [3](https://www.layer3labs.io/comparisons/milvus-vs-qdrant)",
+      "sources": [
+        {
+          "title": "Qdrant vs Milvus:A Brutal Dissection of Two Vector Databases in the AI Arena",
+          "url": "https://medium.com/@aefselinates/qdrant-vs-milvus-a-brutal-dissection-of-two-vector-databases-in-the-ai-arena-e6ccd708e3c1"
+        },
+        {
+          "title": "Milvus vs Qdrant | 向量数据库全面对比与选型指南",
+          "url": "https://zilliz.com.cn/comparison/milvus-vs-qdrant"
+        },
+        {
+          "title": "Milvus vs Qdrant: Which Open-Source Vector Database? (2026)",
+          "url": "https://www.layer3labs.io/comparisons/milvus-vs-qdrant"
+        },
+        {
+          "title": "向量数据库对比:Weaviate、Milvus和Qdrant | 逐水寻源",
+          "url": "https://www.zair.top/post/vector-database-compare"
+        },
+        {
+          "title": "向量数据库选型：从Chroma到Milvus，企业场景怎么选 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2664756"
         }
       ]
     }

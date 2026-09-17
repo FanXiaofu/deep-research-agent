@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：评估10B参数以下小模型在生产环境中的应用能力。\n覆盖维度：任务范围（如NLP、CV等）、性能指标（准确率、速度）、实际案例。\n产出形式：研究报告，包括分析总结与建议。",
+  "subquestions": [
+    "评估10B参数以下小模型在NLP任务范围内的应用能力",
+    "10B参数以下小模型在性能指标上的表现分析"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "评估10B参数以下小模型在NLP任务范围内的应用能力",
+      "content": "小语言模型（SLM）通常在10B参数以下，能在消费级硬件上运行。它们在格式固定的窄任务上表现接近大模型，但在长推理链和长文件综合上有明显差距。NVIDIA的研究表明，大多数代理任务的步骤是重复且格式固定的，可以由小模型处理，从而降低成本。SLM在某些NLP任务上的应用能力，如阅读理解、情感分析和语义相似度，可以通过标准数据集进行评估。例如，SQuAD用于阅读理解，SST-2用于情感分析，STS用于语义相似度。这些任务的评估通常依赖于精确匹配（Exact Match, EM）和F1分数、准确率、皮尔逊相关系数和斯皮尔曼相关系数等指标。然而，对于10B参数以下的小模型在NLP任务范围内的应用能力，现有信息不足以全面评估，因为缺乏针对此类模型的具体评测数据和结果。",
+      "sources": [
+        {
+          "title": "大模型评估 | RexKing6's Note",
+          "url": "https://blog.rexking6.top/2024/01/16/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E8%AF%84%E4%BC%B0"
+        },
+        {
+          "title": "SLM 是什麼？小語言模型的夠用經濟學",
+          "url": "https://signals.tw/articles/what-is-small-language-model"
+        },
+        {
+          "title": "社区供稿| Nanbeige4.2-3B：探索通用Agent小模型",
+          "url": "https://hub.baai.ac.cn/view/56807"
+        },
+        {
+          "title": "qwen真的是良心企業，一直堅持做10b以下的小參數模型",
+          "url": "https://www.threads.com/@changwei1997/post/DZsl1bOHUax/qwen%E7%9C%9F%E7%9A%84%E6%98%AF%E8%89%AF%E5%BF%83%E4%BC%81%E6%A5%AD%E4%B8%80%E7%9B%B4%E5%A0%85%E6%8C%81%E5%81%9A10b%E4%BB%A5%E4%B8%8B%E7%9A%84%E5%B0%8F%E5%8F%83%E6%95%B8%E6%A8%A1%E5%9E%8B%E8%AE%93%E6%99%AE%E9%80%9A%E4%BA%BA%E4%B9%9F%E8%83%BD%E7%94%A8%E6%B6%88%E8%B2%BB%E7%B4%9Agpu%E5%92%8C%E5%B0%8Fvram%E5%AD%B8%E7%BF%92llm%E5%90%84%E7%A8%AE%E7%8E%A9%E6%B3%95%E5%B8%8C%E6%9C%9B%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%89%E5%85%8D%E8%B2%BB%E9%96%8B%E6%BA%90%E7%9A%84qwen4%E7%B5%A6%E6%88%91%E5%80%91%E7%8E%A9"
+        },
+        {
+          "title": "NLP分類任務估指標｜郝信華 iPAS AI應用規劃師 學習筆記",
+          "url": "https://vocus.cc/article/68319997fd897800010e51f9"
+        }
+      ]
+    },
+    {
+      "subquestion": "10B参数以下小模型在性能指标上的表现分析",
+      "content": "研究显示，10B参数以下的小模型在特定任务上可以表现出色，甚至超越大模型。例如，Step3-VL-10B在多模态推理、数学竞赛和编程能力上取得了显著成绩，性能媲美甚至超越了规模大10-20倍的开源模型。其成功得益于高质量多模态语料库上的统一预训练、缩放多模态强化学习和并行协调推理机制。这些技术使得小模型在复杂任务中具备了强大的处理能力。[1][2]此外，开源模型如Qwen3-VL-Thinking 235B-A22B和闭源旗舰模型如Gemini 2.5 Pro、Seed-1.5-VL也展示了小模型在特定任务上的卓越表现。[2]",
+      "sources": [
+        {
+          "title": "大模型、小模型“诸神之战”，落地才是赛点 - 53AI-AI知识库|企业AI知识库|大模型知识库|前线部署工程师|FDE|AIHub",
+          "url": "https://www.53ai.com/news/LargeLanguageModel/2024071403927.html"
+        },
+        {
+          "title": "开源新王炸！10B多模态小模型屠榜，性能媲美20倍巨无霸_腾讯新闻",
+          "url": "https://news.qq.com/rain/a/20260120A07COP00"
+        },
+        {
+          "title": "开源新王炸！10B多模态小模型屠榜，性能媲美20倍巨无霸 - 智东西",
+          "url": "https://m.zhidx.com/p/529821.html"
+        },
+        {
+          "title": "qwen真的是良心企業，一直堅持做10b以下的小參數模型",
+          "url": "https://www.threads.com/@changwei1997/post/DZsl1bOHUax/qwen%E7%9C%9F%E7%9A%84%E6%98%AF%E8%89%AF%E5%BF%83%E4%BC%81%E6%A5%AD%E4%B8%80%E7%9B%B4%E5%A0%85%E6%8C%81%E5%81%9A10b%E4%BB%A5%E4%B8%8B%E7%9A%84%E5%B0%8F%E5%8F%83%E6%95%B8%E6%A8%A1%E5%9E%8B%E8%AE%93%E6%99%AE%E9%80%9A%E4%BA%BA%E4%B9%9F%E8%83%BD%E7%94%A8%E6%B6%88%E8%B2%BB%E7%B4%9Agpu%E5%92%8C%E5%B0%8Fvram%E5%AD%B8%E7%BF%92llm%E5%90%84%E7%A8%AE%E7%8E%A9%E6%B3%95%E5%B8%8C%E6%9C%9B%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%89%E5%85%8D%E8%B2%BB%E9%96%8B%E6%BA%90%E7%9A%84qwen4%E7%B5%A6%E6%88%91%E5%80%91%E7%8E%A9"
+        },
+        {
+          "title": "70B大模型训练秘方③：1000次超参数优化实验的发现 - 智源社区",
+          "url": "https://hub.baai.ac.cn/view/40852"
+        }
+      ]
+    }
+  ]
+}

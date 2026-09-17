@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：评估 PostgreSQL 的 pgvector 在功能、性能、成本及应用场景等方面与专用向量数据库的对比。\n覆盖维度：功能完备性、查询效率、扩展性、成本效益、易用性、案例研究。\n产出形式：研究报告，包含对比分析、图表及建议。",
+  "subquestions": [
+    "评估 PostgreSQL 的 pgvector 在功能完备性方面与专用向量数据库的对比",
+    "分析 PostgreSQL 的 pgvector 在查询效率、扩展性、成本效益、易用性及应用场景等方面与专用向量数据库的对比"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "评估 PostgreSQL 的 pgvector 在功能完备性方面与专用向量数据库的对比",
+      "content": "pgvector 是 PostgreSQL 的一个扩展插件，它允许在关系型数据库中存储和处理向量嵌入。与专门的向量数据库 Milvus 相比，pgvector 在功能完备性方面存在一些差异。pgvector 适合数据量较小的项目，而 Milvus 则适用于大规模、高性能的 AI 应用。pgvector 的运维复杂度较低，但不支持多核并行扫描和 GPU 加速。Milvus 则提供了更高的查询性能和扩展性，支持 GPU 加速，但运维复杂度较高。pgvector 适用于已有 PostgreSQL 的中小项目，而 Milvus 适用于大规模、高性能的 AI 应用。在性能方面，Milvus 在处理千万级以上向量时，性能远超 pgvector。",
+      "sources": [
+        {
+          "title": "Milvus 和PGVector，哪个更好？ - 腾讯云开发者社区",
+          "url": "https://developer.cloud.tencent.com/article/2658089"
+        },
+        {
+          "title": "【技术干货】向量数据库选型指南：五大主流方案性能对比与最佳实践（建议收藏）_数据库_Python-搬运工-腾讯云开发者社区",
+          "url": "https://tencentcloud.csdn.net/69e9b8bf0a2f6a37c5a2261b.html"
+        },
+        {
+          "title": "使用优化型读取和 pgvector，提高 Amazon Aurora 上生成式人工智能工作负载的性能 | 亚马逊AWS官方博客",
+          "url": "https://aws.amazon.com/cn/blogs/china/accelerate-generative-ai-workloads-on-amazon-aurora-with-optimized-reads-and-pgvector"
+        },
+        {
+          "title": "什么是pgvector？ - Google Cloud",
+          "url": "https://cloud.google.com/discover/what-is-pgvector?hl=zh-CN"
+        },
+        {
+          "title": "Azure Database for PostgreSQL 灵活服务器中的向量搜索",
+          "url": "https://learn.microsoft.com/zh-cn/azure/postgresql/extensions/how-to-use-pgvector"
+        }
+      ]
+    },
+    {
+      "subquestion": "分析 PostgreSQL 的 pgvector 在查询效率、扩展性、成本效益、易用性及应用场景等方面与专用向量数据库的对比",
+      "content": "pgvector 是 PostgreSQL 的一个扩展，支持向量数据的存储、查询和索引。它利用 PostgreSQL 的可扩展性和 SQL 语法，提供高效、灵活的向量处理能力。pgvector 支持多种距离度量，如欧几里得距离和余弦相似度，适用于推荐系统、情感分析等场景。与专用向量数据库相比，pgvector 集成了 PostgreSQL 的事务支持和可靠性，易于部署和维护。然而，专用向量数据库如 Milvus 在大规模数据集和复杂查询场景下可能表现出更好的性能和扩展性。[1] [2] [3] [4] [5]",
+      "sources": [
+        {
+          "title": "Elastic vs pgvector | 向量数据库全面对比与选型指南",
+          "url": "https://zilliz.com.cn/comparison/elastic-vs-pgvector"
+        },
+        {
+          "title": "PostgreSQL pgvector：如何利用向量数据库提升搜索效率和 ...",
+          "url": "https://developer.volcengine.com/articles/7386867958402220044"
+        },
+        {
+          "title": "pgvector实现高维向量检索-云数据库 RDS(RDS)-阿里云帮助中心",
+          "url": "https://help.aliyun.com/zh/rds/apsaradb-rds-for-postgresql/pgvector-use-guide"
+        },
+        {
+          "title": "什么是pgvector？ - Google Cloud",
+          "url": "https://cloud.google.com/discover/what-is-pgvector?hl=zh-CN"
+        },
+        {
+          "title": "Azure Database for PostgreSQL 灵活服务器中的向量搜索",
+          "url": "https://learn.microsoft.com/zh-cn/azure/postgresql/extensions/how-to-use-pgvector"
+        }
+      ]
+    }
+  ]
+}

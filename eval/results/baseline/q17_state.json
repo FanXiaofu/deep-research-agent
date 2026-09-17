@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：比较 Redis 和 PostgreSQL 在 Agent 会话记忆存储方面的适用性。\n\n需覆盖维度：数据存储性能、数据一致性、扩展性、成本效益、易用性。\n\n期望产出：一份详细的比较报告，包括图表和结论。",
+  "subquestions": [
+    "Redis 和 PostgreSQL 在数据存储性能方面的比较",
+    "Redis 和 PostgreSQL 在扩展性方面的比较"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "Redis 和 PostgreSQL 在数据存储性能方面的比较",
+      "content": "Redis在读写速度、内存效率和资源消耗方面优于PostgreSQL，但PostgreSQL在事务支持和数据持久化方面表现更好。Redis具有内置的过期机制，而PostgreSQL需要额外实现。对于复杂查询和数据分析，PostgreSQL是更好的选择；而对于高频率的简单操作和缓存，Redis更为合适。在实际测试中，使用PostgreSQL作为主数据库，Redis作为专用缓存服务器的架构被证明是合理的。",
+      "sources": [
+        {
+          "title": "PostgreSQL vs Redis: Caching Server Comparison",
+          "url": "https://ganhua.wang/postgresql-redis-cacheserver"
+        },
+        {
+          "title": "InfluxData",
+          "url": "https://www.influxdata.com/comparison/postgres-vs-redis"
+        },
+        {
+          "title": "PostgreSQL vs Redis vs Memcached performance | CYBERTEC PostgreSQL | Services & Support",
+          "url": "https://www.cybertec-postgresql.com/en/postgresql-vs-redis-vs-memcached-performance"
+        },
+        {
+          "title": "Redis vs PostgreSQL  Making the Right Choice - Chris Travers",
+          "url": "https://www.youtube.com/watch?v=lfHWJIUUnNk"
+        },
+        {
+          "title": "主流数据库对比：MySQL、PostgreSQL、Oracle和Redis的优缺点分析-阿里云开发者社区",
+          "url": "https://developer.aliyun.com/article/1615643"
+        }
+      ]
+    },
+    {
+      "subquestion": "Redis 和 PostgreSQL 在扩展性方面的比较",
+      "content": "Redis 和 PostgreSQL 在扩展性方面各有优势。Redis 由于其单线程模型和多种数据类型支持，在缓存场景下表现良好，而 PostgreSQL 的 MVCC 机制虽然提供了事务一致性，但在缓存用途中却增加了额外开销。此外，Redis 提供了集群和哨兵机制，更适合分布式缓存场景。在实际测试中，使用 PostgreSQL 作为主数据库，Redis 作为专用缓存服务器的架构被证明是较为合理的。尽管 PostgreSQL 也支持缓存，但在大规模应用中，专用缓存解决方案的优势仍然明显。",
+      "sources": [
+        {
+          "title": "PostgreSQL vs Redis: Caching Server Comparison",
+          "url": "https://ganhua.wang/postgresql-redis-cacheserver"
+        },
+        {
+          "title": "Redis vs PostgreSQL  Making the Right Choice - Chris Travers",
+          "url": "https://www.youtube.com/watch?v=lfHWJIUUnNk"
+        },
+        {
+          "title": "Oracle、MySQL、SQL Server、PostgreSQL、Redis 五大数据库的区别 - Johny_Zhao - 博客园",
+          "url": "https://www.cnblogs.com/Johny-zhao/p/18859542"
+        },
+        {
+          "title": "PostgreSQL vs Redis vs Memcached performance | CYBERTEC PostgreSQL | Services & Support",
+          "url": "https://www.cybertec-postgresql.com/en/postgresql-vs-redis-vs-memcached-performance"
+        },
+        {
+          "title": "主流数据库对比：MySQL、PostgreSQL、Oracle和Redis的优缺点分析-阿里云开发者社区",
+          "url": "https://developer.aliyun.com/article/1615643"
+        }
+      ]
+    }
+  ]
+}

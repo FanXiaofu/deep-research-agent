@@ -1,0 +1,19 @@
+{
+  "id": "q13",
+  "category": "概念解释",
+  "question": "Agent 的 ReAct 模式是什么，它有什么局限性",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 110,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 13078,
+  "output_tokens": 1486,
+  "cost_usd_est": 0.0052,
+  "elapsed_s": 74.1
+}

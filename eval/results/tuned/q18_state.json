@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：对比分析AI编程助手Copilot、Claude Code、Cursor的工作原理。\n覆盖维度：技术架构、算法、应用场景、用户交互。\n产出形式：研究报告或图表对比。",
+  "subquestions": [
+    "对比分析AI编程助手Copilot的技术架构与Claude Code的算法",
+    "比较Cursor与Copilot和Claude Code在应用场景及用户交互方面的差异"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "对比分析AI编程助手Copilot的技术架构与Claude Code的算法",
+      "content": "Claude Code 和 GitHub Copilot 是两种不同的 AI 编程助手。Claude Code 是 Anthropic 开发的命令行工具，能够理解整个项目并进行多文件编辑，擅长处理复杂的重构任务。而 GitHub Copilot 则是深度集成于主流 IDE 的代码补全工具，提供实时代码建议和聊天式辅助，与 GitHub 生态系统深度整合。两者在上下文理解、代码生成和价格方面各有优势。Claude Code 在大型重构和多文件编辑上表现更佳，而 Copilot 则在日常编码体验上更胜一筹。价格方面，Copilot 提供免费版和付费版，Claude Code 则按 API 权杖用量计费。",
+      "sources": [
+        {
+          "title": "Claude Code 和 Copilot 哪个好？用了三个月的真实对比结论",
+          "url": "https://www.heyuan110.com/zh/posts/ai/2026-03-05-claude-code-vs-copilot"
+        },
+        {
+          "title": "Claude Code與GitHub Copilot競合：AI輔助開發新趨勢，協同合作提升效率",
+          "url": "https://tw.stock.yahoo.com/news/claude-code%E8%88%87github-copilot%E7%AB%B6%E5%90%88-ai%E8%BC%94%E5%8A%A9%E9%96%8B%E7%99%BC%E6%96%B0%E8%B6%A8%E5%8B%A2-%E5%8D%94%E5%90%8C%E5%90%88%E4%BD%9C%E6%8F%90%E5%8D%87%E6%95%88%E7%8E%87-053746078.html"
+        },
+        {
+          "title": "AI 编程工具选哪个？2026 年Cursor、Claude Code",
+          "url": "https://developer.volcengine.com/articles/7652673916258779178"
+        },
+        {
+          "title": "AI编程工具对比 2025 - Cursor vs Copilot vs Claude | NxCode",
+          "url": "https://www.nxcode.io/zh/tools/ai-coding-tools-comparison"
+        },
+        {
+          "title": "不拼算力拼效率：OpenAI与Claude Code的巅峰对决",
+          "url": "https://www.tradingkey.com/zh-hans/analysis/stocks/us-stock/261741672-openai-ipo-claudecode-anthropic-tradingkey"
+        }
+      ]
+    },
+    {
+      "subquestion": "比较Cursor与Copilot和Claude Code在应用场景及用户交互方面的差异",
+      "content": "Cursor、Claude Code 和 Copilot 在应用场景及用户交互方面各有特点。Cursor 是一个增强版的 VS Code 编辑器，强调日常编码体验，如实时补全、行内对话和跨文件修改。Claude Code 是 Anthropic 开发的命令行工具，能够理解项目并进行跨文件修改、运行测试和提交 PR，特别擅长重构和代码质量。Copilot 则是 GitHub 推出的工具，主要通过企业采购实现大规模部署，与 GitHub 生态深度整合，提供 Coding Agent 和 Agentic Code Review 等功能。Claude Code 在处理复杂代码库时表现出色，而 Cursor 则在日常编码体验上更胜一筹。[AI 编程工具选哪个？2026 年 Cursor、Claude Code、Copilot 横向对比](https://developer.volcengine.com/articles/7652673916258779178)和[GitHub Copilot vs Cursor vs Claude Code: Which AI Coding Tool Should You Use?](https://www.simular.ai/alternatives/github-copilot-vs-cursor-vs-claude-code)提供了详细对比。",
+      "sources": [
+        {
+          "title": "AI 编程工具选哪个？2026 年 Cursor、Claude Code、Copilot 横向对比 - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7652673916258779178"
+        },
+        {
+          "title": "Claude Code vs Cursor vs GitHub Copilot",
+          "url": "https://dev.to/dextralabs/claude-code-vs-cursor-vs-github-copilot-honest-comparison-after-30-days-1030"
+        },
+        {
+          "title": "GitHub Copilot vs Cursor vs Claude Code: Which AI Coding Tool Should You Use?",
+          "url": "https://www.simular.ai/alternatives/github-copilot-vs-cursor-vs-claude-code"
+        },
+        {
+          "title": "Claude Code vs GitHub Copilot vs Cursor - Cosmic JS",
+          "url": "https://www.cosmicjs.com/blog/claude-code-vs-github-copilot-vs-cursor-which-ai-coding-agent-should-you-use-2026"
+        },
+        {
+          "title": "GitHub Copilot vs Cursor vs Claude: The Ultimate AI Coding Showdown! 🥊",
+          "url": "https://www.youtube.com/watch?v=_tJQC_CHXYY"
+        }
+      ]
+    }
+  ]
+}

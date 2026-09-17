@@ -1,0 +1,19 @@
+{
+  "id": "q12",
+  "category": "工具选型",
+  "question": "PostgreSQL 的 pgvector 与专用向量数据库相比够用吗",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 11,
+  "citation_validity": 1.0,
+  "source_utilization": 0.125,
+  "n_refs": 8,
+  "llm_calls": 6,
+  "input_tokens": 14689,
+  "output_tokens": 1310,
+  "cost_usd_est": 0.0054,
+  "elapsed_s": 74.5
+}

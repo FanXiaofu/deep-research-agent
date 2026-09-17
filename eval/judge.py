@@ -45,10 +45,24 @@ CITATION_PROMPT = """你是引用规范评审员。
 评分标准：5=引用位置准确、覆盖所有关键论断；3=引用基本正确但有明显漏挂或挂错；1=引用混乱或形同虚设。"""
 
 
+# 引用标记：[1] 以及复合写法 [2, 6, 12] / [2，6]（中文逗号）
+# 早期版本只匹配单个 [n]，会把复合引用误判成"无引用"，系统性低估 strict grounding 的效果
+_CITE_RE = re.compile(r"\[(\d{1,2}(?:\s*[,，]\s*\d{1,2})*)\]")
+
+
+def _extract_citations(text: str) -> list[int]:
+    out: list[int] = []
+    for m in _CITE_RE.finditer(text):
+        for part in re.split(r"[,，]\s*", m.group(1)):
+            if part.strip().isdigit():
+                out.append(int(part))
+    return out
+
+
 def citation_checks(report: str, n_refs: int) -> dict:
     """确定性校验（不依赖 LLM）：正文 [n] 是否越界、来源利用率。"""
     body = report.split("## 参考来源")[0]
-    cited = [int(m) for m in re.findall(r"\[(\d{1,2})\]", body)]
+    cited = _extract_citations(body)
     valid = [n for n in cited if 1 <= n <= n_refs]
     return {
         "n_citations": len(cited),

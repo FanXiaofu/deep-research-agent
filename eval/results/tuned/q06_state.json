@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：分析2025-2026年大模型参数高效微调的主流方法。\n覆盖维度：方法介绍、应用场景、优缺点比较。\n产出形式：研究报告。",
+  "brief": "研究目标：分析2025-2026年大模型参数高效微调的主流方法。\n覆盖维度：方法概述、技术原理、应用场景、优缺点对比。\n产出形式：研究报告。",
   "subquestions": [
-    "2025-2026年大模型参数高效微调的主流方法介绍",
-    "2025-2026年大模型参数高效微调的应用场景及优缺点比较"
+    "2025-2026年大模型参数高效微调的主流方法概述",
+    "2025-2026年大模型参数高效微调的技术原理及其优缺点对比"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "炼石成丹：大语言模型微调实战系列（二）模型微调篇 | 亚马逊AWS官方博客",
           "url": "https://aws.amazon.com/cn/blogs/china/practical-series-on-fine-tuning-large-language-models-part-two"
+        }
+      ]
+    },
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的主流方法概述",
+      "content": "2025-2026年，参数高效微调（PEFT）方法，特别是低秩适应（LoRA）和量化低秩适应（QLoRA），成为主流。PEFT方法通过在预训练模型上添加少量可训练参数，避免了全面微调带来的高成本和时间消耗。LoRA和QLoRA是PEFT中的两种常用方法，它们通过调整少量参数来优化模型在特定任务上的性能。此外，研究指出PEFT技术能够显著缩短训练时间和计算成本，使更多研究者能够参与到深度学习的研究中。[1][3][4]",
+      "sources": [
+        {
+          "title": "大模型参数高效微调方法综述: 技术、趋势与挑战",
+          "url": "https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451"
+        },
+        {
+          "title": "大模型参数高效微调(PEFT)",
+          "url": "https://zhuanlan.zhihu.com/p/621700272"
+        },
+        {
+          "title": "一文看完大模型微调技术：微调背景、分类和微调全流程介绍 - AI全书",
+          "url": "https://aibook.ren/archives/llm-fine-tuning"
+        },
+        {
+          "title": "微调LLM：概览和指南",
+          "url": "https://cloud.google.com/use-cases/fine-tuning-ai-models?hl=zh-CN"
+        },
+        {
+          "title": "Gate 上线 GateRouter：支持统一 API 调用主流大模型，成本可降 80%",
+          "url": "https://cryptorank.io/news/feed/a2f3f-2251743"
+        }
+      ]
+    },
+    {
+      "subquestion": "2025-2026年大模型参数高效微调的技术原理及其优缺点对比",
+      "content": "2025年，参数高效微调技术，尤其是LoRA技术，成为主流。LoRA通过低秩分解来表示权重矩阵的更新，显著减少了可训练参数的数量，从而降低了计算和存储需求。与全参数微调相比，LoRA可训练参数仅为原始模型的0.1%-1%，训练过程更加稳定，收敛速度快。此外，QLoRA是LoRA的量化版本，进一步降低了内存需求。参数高效微调技术如Adapter、Prompt Tuning和BitFit等，也各有优势。这些技术在保持接近全参数微调性能的同时，显著降低了资源需求，使得大模型在更广泛的场景中得到应用。研究指出，PEFT方法在生成式任务中通常能提高性能，但具体效果还需根据任务类型和模型规模进行评估。[1](https://developer.aliyun.com/article/1683997) [3](https://www.alphaxiv.org/zh/abs/2504.21569)",
+      "sources": [
+        {
+          "title": "大模型微调全参数与参数高效方法选型与实践-开发者社区-阿里云",
+          "url": "https://developer.aliyun.com/article/1683997"
+        },
+        {
+          "title": "大模型参数高效微调方法综述: 技术、趋势与挑战",
+          "url": "https://www.aas.net.cn/cn/article/doi/10.16383/j.aas.c250451?viewType=HTML"
+        },
+        {
+          "title": "针对大型代码模型的参数高效微调系统文献综述 | alphaXiv",
+          "url": "https://www.alphaxiv.org/zh/abs/2504.21569"
+        },
+        {
+          "title": "大模型微调技术详解含LoRA实战与并行训练-开发者社区-阿里云",
+          "url": "https://developer.aliyun.com/article/1683065"
+        },
+        {
+          "title": "预见2025：《2025年中国大模型行业全景图谱》（附市场规模、竞争格局和发展趋势等） 提供者 前瞻网",
+          "url": "https://cn.investing.com/news/economy-news/article-2767537"
         }
       ]
     }

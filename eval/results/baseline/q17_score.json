@@ -1,0 +1,19 @@
+{
+  "id": "q17",
+  "category": "工具选型",
+  "question": "Agent 会话记忆存 Redis 还是 PostgreSQL 该怎么选",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 15,
+  "citation_validity": 0.4,
+  "source_utilization": 1.0,
+  "n_refs": 6,
+  "llm_calls": 6,
+  "input_tokens": 5102,
+  "output_tokens": 906,
+  "cost_usd_est": 0.0024,
+  "elapsed_s": 46.5
+}

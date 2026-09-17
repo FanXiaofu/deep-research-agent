@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：评估FastAPI与Flask在构建AI应用后端时的适用性。\n\n需覆盖维度：开发效率、性能表现、社区支持、学习曲线、扩展性。\n\n期望产出：对比分析报告。",
+  "subquestions": [
+    "FastAPI与Flask在开发效率上的对比分析",
+    "FastAPI与Flask在性能表现、社区支持、学习曲线、扩展性方面的对比分析"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "FastAPI与Flask在开发效率上的对比分析",
+      "content": "FastAPI 和 Flask 在开发效率上各有优势。FastAPI 由于其基于 Python 类型提示和异步编程特性，提供了更强大的数据验证和更高的性能。它自带的依赖注入系统和内置的 API 文档生成工具（如 Swagger 和 Redoc）能够显著提高开发效率。此外，FastAPI 的 GitHub 星标数远超 Flask，表明其在开发者社区中更受欢迎。然而，Flask 拥有更为成熟的生态系统和丰富的第三方插件，这使得在需要快速原型或依赖现有插件时，Flask 更具优势。FastAPI 的学习曲线相对较高，特别是对于不熟悉异步编程的开发者。Flask 则提供了更直观的装饰器语法和更简单的开发工具，适合初学者和小型项目。",
+      "sources": [
+        {
+          "title": "FastAPI 与Flask：Python Web 两大流行框架综合对比",
+          "url": "https://apifox.com/apiskills/fastapi-vs-flask"
+        },
+        {
+          "title": "请不要把 Flask 和 FastAPI 放到一起比较 | 李辉 / Grey Li",
+          "url": "https://greyli.com/flask-fastapi"
+        },
+        {
+          "title": "FastAPI入门：从简介到实战，对比Flask帮你选对框架",
+          "url": "https://www.cnblogs.com/ymtianyu/p/19385007"
+        },
+        {
+          "title": "​​FastAPI vs Flask 2025: Performance, Speed & When to Choose",
+          "url": "https://strapi.io/blog/fastapi-vs-flask-python-framework-comparison"
+        },
+        {
+          "title": "Django，Flask ，FastAPI 怎么选？-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/1819808"
+        }
+      ]
+    },
+    {
+      "subquestion": "FastAPI与Flask在性能表现、社区支持、学习曲线、扩展性方面的对比分析",
+      "content": "FastAPI与Flask在性能表现、社区支持、学习曲线、扩展性方面各有优势。FastAPI在性能方面表现出色，支持异步编程和类型注释，适合构建高性能API。Flask则拥有庞大的社区支持和丰富的插件生态系统，适合快速原型开发和小型项目。FastAPI的学习曲线较陡峭，但提供了自动API文档生成工具，而Flask的同步模式更易上手。两者都具备良好的扩展性，可以通过插件和扩展来满足不同的需求。FastAPI在性能和现代API开发方面有明显优势，而Flask在社区支持和插件丰富性方面更胜一筹。",
+      "sources": [
+        {
+          "title": "FastAPI 与Flask：Python Web 两大流行框架综合对比",
+          "url": "https://apifox.com/apiskills/fastapi-vs-flask"
+        },
+        {
+          "title": "FastAPI入门：从简介到实战，对比Flask帮你选对框架",
+          "url": "https://www.cnblogs.com/ymtianyu/p/19385007"
+        },
+        {
+          "title": "Flask、Django和FastAPI比较：优缺点和适用情况 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/news/1272762"
+        },
+        {
+          "title": "Flask、FastAPI 和 Nameko 三者比较Flask、FastAPI 和 Nameko 是三种不同的 Pyt - 掘金",
+          "url": "https://juejin.cn/post/7389979645587095579"
+        },
+        {
+          "title": "哪种Python Web 框架最好：Django、Flask，还是FastAPI？",
+          "url": "https://blog.jetbrains.com/zh-hans/pycharm/2025/03/django-flask-fastapi"
+        }
+      ]
+    }
+  ]
+}

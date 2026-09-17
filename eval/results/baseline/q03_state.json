@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：评估 Rust 和 Go 在构建高性能 Web 后端方面的适用性。\n\n需覆盖维度：性能指标、并发处理能力、生态系统支持、社区活跃度、学习曲线。\n\n期望产出：对比报告，包含两者的优缺点及适用场景。",
+  "brief": "研究目标：评估 Rust 和 Go 在构建高性能 Web 后端方面的适用性。\n\n需覆盖维度：性能指标（如响应时间、吞吐量）、语言特性、生态系统支持、社区活跃度、学习曲线。\n\n产出形式：对比报告，包含图表和总结。",
   "subquestions": [
-    "评估 Rust 和 Go 在性能指标方面的优劣",
-    "分析 Rust 和 Go 在社区活跃度和学习曲线上的差异"
+    "评估 Rust 和 Go 在响应时间方面的性能指标",
+    "比较 Rust 和 Go 的语言特性和生态系统支持"
   ],
   "conflicts": [],
   "notes": [
@@ -107,6 +107,58 @@
         {
           "title": "作为全栈开发者，我该投资Go 还是Rust？ : r/golang",
           "url": "https://www.reddit.com/r/golang/comments/1owvoh6/should_i_invest_in_go_or_rust_as_a_fullstack_dev?tl=zh-hans"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估 Rust 和 Go 在响应时间方面的性能指标",
+      "content": "在响应时间方面，Rust 和 Go 的性能存在差异。Rust 在执行算法和资源密集型操作方面效率更高，特别是在并发和内存安全方面表现出色。例如，Rust 在二叉树计算中比 Go 快 30% 至 1,000%。在实际业务迁移中，Volo 框架（基于 Rust）在某些业务场景下，如业务 A，能够显著降低 CPU 使用率。Go 的并发模型通过 goroutines 提供了强大的支持，但 Rust 在保证内存安全方面更胜一筹。具体到响应时间，尽管 Go 支持并发，但在某些测试中，Rust 的性能指标优于 Go。例如，Rust 的 Actix-web 在处理 JSON 响应时，QPS 达到 162,011，而 Go 的 Gin 则为 155,512。因此，Rust 在响应时间方面可能更优。[实测：C++ vs Go vs Rust，谁的 Web 性能更强？](https://juejin.cn/post/7636980921304465444)、[何时使用 Rust 和何时使用 Golang](https://polarisxu.studygolang.com/posts/go/translation/when-to-use-rust-and-when-to-use-golang)、[选择 Go 还是 Rust？CloudWeGo-Volo 基于 Rust 语言的探索实践](https://www.cloudwego.io/zh/blog/2022/09/06/%E9%80%89%E6%8B%A9-go-%E8%BF%98%E6%98%AF-rustcloudwego-volo-%E5%9F%BA%E4%BA%8E-rust-%E8%AF%AD%E8%A8%80%E7%9A%84%E6%8E%A2%E7%B4%A2%E5%AE%9E%E8%B7%B5)。",
+      "sources": [
+        {
+          "title": "选择 Go 还是 Rust？CloudWeGo-Volo 基于 Rust 语言的探索实践 | CloudWeGo",
+          "url": "https://www.cloudwego.io/zh/blog/2022/09/06/%E9%80%89%E6%8B%A9-go-%E8%BF%98%E6%98%AF-rustcloudwego-volo-%E5%9F%BA%E4%BA%8E-rust-%E8%AF%AD%E8%A8%80%E7%9A%84%E6%8E%A2%E7%B4%A2%E5%AE%9E%E8%B7%B5"
+        },
+        {
+          "title": "Go 与 Rust 在后端应用中的抉择：如何明智选择 | Koder.ai",
+          "url": "https://koder.ai/zh/blog/go-vs-rust-hou-duan-ru-he-ming-zhi-xuan-ze"
+        },
+        {
+          "title": "实测：C++ vs Go vs Rust，谁的 Web 性能更强？\"2026 年了，还有人用 C++ 写 Web 服务？ - 掘金",
+          "url": "https://juejin.cn/post/7636980921304465444"
+        },
+        {
+          "title": "何时使用 Rust 和何时使用 Golang",
+          "url": "https://polarisxu.studygolang.com/posts/go/translation/when-to-use-rust-and-when-to-use-golang"
+        },
+        {
+          "title": "Rust vs. Go (Golang): Performance 2025 - YouTube",
+          "url": "https://www.youtube.com/watch?v=CsKNTwS9kic"
+        }
+      ]
+    },
+    {
+      "subquestion": "比较 Rust 和 Go 的语言特性和生态系统支持",
+      "content": "Rust 和 Go 都是现代编程语言，各自在性能、语言特性和生态系统支持方面有独特优势。Rust 以其内存安全和高性能著称，强调零成本抽象和所有权模型，适合需要高度控制的应用场景。Go 则以简单易用和强大的并发模型闻名，拥有丰富的标准库，适合快速开发大规模分布式系统。根据《State of Developer Ecosystem Report 2024》，Rust 的用户基数为 227 万，其中 70.9 万将其作为主要语言；而 Go 的用户基础依然稳固。尽管 Go 用户中有部分人考虑转向 Rust，但实际大规模采用的可能性较低。RustRover 博客文章指出，Go 在开发效率和并发易用性上具有优势，而 Rust 在底层控制和内存安全方面更胜一筹。",
+      "sources": [
+        {
+          "title": "Rust vs Go: A Comprehensive Comparison for Backend Development | AppMaster",
+          "url": "https://appmaster.io/blog/rust-vs-go-comparison-backend-development"
+        },
+        {
+          "title": "Rust vs Go：现代编程语言深度对比与选择指南-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2558260"
+        },
+        {
+          "title": "Go还是Rust？2025年技术选型之辩 | Tony Bai",
+          "url": "https://tonybai.com/2025/06/15/rust-vs-go-2025"
+        },
+        {
+          "title": "【譯】Rust vs. Go · GitHub",
+          "url": "https://gist.github.com/weihanglo/3dc1af4b0c15cb9ec600f28a7b06ad2f"
+        },
+        {
+          "title": "Rust vs Go: Which Language Should You Choose in 2026?",
+          "url": "https://blog.jetbrains.com/rust/2025/06/12/rust-vs-go"
         }
       ]
     }

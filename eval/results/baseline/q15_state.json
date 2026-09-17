@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：评估10B参数以下小模型在生产环境中的应用能力。\n覆盖维度：任务范围（如NLP、CV等）、性能指标（准确率、效率）、实际案例。\n产出形式：研究报告，包含分析结论与建议。",
+  "subquestions": [
+    "评估10B参数以下小模型在NLP任务范围内的应用能力",
+    "评估10B参数以下小模型在CV任务范围内的性能指标与效率"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "评估10B参数以下小模型在NLP任务范围内的应用能力",
+      "content": "小语言模型（SLM）在10B参数以下，能在消费级硬件上运行，适用于格式固定的窄任务，如分类、抽取、改写等。它们在延迟、能耗与运算量上比大模型便宜10到30倍。NVIDIA的研究表明，大多数agent系统任务可以通过小模型完成，而复杂任务则留给大模型。Nanbeige4.2-3B展示了在3B参数约束下，小模型也能实现代码智能体、办公智能体等功能。尽管小模型在长推理链和长文件综合上存在明显落差，但它们在资源受限的设备上具有广泛应用潜力。[SLM 是什麼？小語言模型的夠用經濟學｜矽基前沿](https://signals.tw/articles/what-is-small-language-model)、[Small Language Models are the Future of Agentic AI](https://arxiv.org/abs/2506.02153)、[社区供稿 | Nanbeige4.2-3B：探索通用Agent小模型 - 智源社区](https://hub.baai.ac.cn/view/56807)",
+      "sources": [
+        {
+          "title": "SLM 是什麼？小語言模型的夠用經濟學｜矽基前沿 [Si]gnals",
+          "url": "https://signals.tw/articles/what-is-small-language-model"
+        },
+        {
+          "title": "qwen真的是良心企業，一直堅持做10b以下的小參數模型，讓普通人也能用消費級gpu和小vram學習llm各種玩法！ 希望之後還有免費開源的qwen4給我們玩！🙏 🥺",
+          "url": "https://www.threads.com/@changwei1997/post/DZsl1bOHUax/qwen%E7%9C%9F%E7%9A%84%E6%98%AF%E8%89%AF%E5%BF%83%E4%BC%81%E6%A5%AD%E4%B8%80%E7%9B%B4%E5%A0%85%E6%8C%81%E5%81%9A10b%E4%BB%A5%E4%B8%8B%E7%9A%84%E5%B0%8F%E5%8F%83%E6%95%B8%E6%A8%A1%E5%9E%8B%E8%AE%93%E6%99%AE%E9%80%9A%E4%BA%BA%E4%B9%9F%E8%83%BD%E7%94%A8%E6%B6%88%E8%B2%BB%E7%B4%9Agpu%E5%92%8C%E5%B0%8Fvram%E5%AD%B8%E7%BF%92llm%E5%90%84%E7%A8%AE%E7%8E%A9%E6%B3%95%E5%B8%8C%E6%9C%9B%E4%B9%8B%E5%BE%8C%E9%82%84%E6%9C%89%E5%85%8D%E8%B2%BB%E9%96%8B%E6%BA%90%E7%9A%84qwen4%E7%B5%A6%E6%88%91%E5%80%91%E7%8E%A9"
+        },
+        {
+          "title": "社区供稿 | Nanbeige4.2-3B：探索通用Agent小模型 - 智源社区",
+          "url": "https://hub.baai.ac.cn/view/56807"
+        },
+        {
+          "title": "万字长文梳理端侧大模型进展(上篇)：由AutoGLM类Agent隐私安全有感 - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7432210796606423078"
+        },
+        {
+          "title": "评估大型语言模型中定义不清的任务 | alphaXiv",
+          "url": "https://www.alphaxiv.org/zh/abs/2603.17067"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估10B参数以下小模型在CV任务范围内的性能指标与效率",
+      "content": "现有信息主要集中在大模型的性能评估方面，但未直接讨论小模型在计算机视觉（CV）任务中的具体性能指标与效率。大模型的评估通常涉及准确性、稳定性、可解释性和效率等多方面，而小模型则可能在参数规模上有所限制。因此，需要进一步研究小模型在CV任务中的具体表现。[1](https://blog.51cto.com/universsky/12681378) [2](https://blog.csdn.net/rengang66/article/details/155077605) [3](https://juejin.cn/post/7325317730953216027) [4](https://blog.csdn.net/LOVEmy134611/article/details/147769923) [5](https://juejin.cn/post/7323771067876622386)",
+      "sources": [
+        {
+          "title": "小语言模型的评估指标体系:覆盖度准确性和效率_51CTO博客_语言模型评价指标",
+          "url": "https://blog.51cto.com/universsky/12681378"
+        },
+        {
+          "title": "19-大模型的性能：评估大模型在不同任务中的性能表现_wmt数据集怎么评估-CSDN博客",
+          "url": "https://blog.csdn.net/rengang66/article/details/155077605"
+        },
+        {
+          "title": "第8章大模型的评估与调优8.1 评估指标与方法8.1.3 模型对比与分析",
+          "url": "https://juejin.cn/post/7325317730953216027"
+        },
+        {
+          "title": "Transformer实战（6）——Transformer模型性能评估_transformer模型评估-CSDN博客",
+          "url": "https://blog.csdn.net/LOVEmy134611/article/details/147769923"
+        },
+        {
+          "title": "第五章：Ai大模型的性能评估5.1 评估指标1.背景介绍 Ai大模型的性能评估是评估模型在特定任务上的表现，以便了解模型 - 掘金",
+          "url": "https://juejin.cn/post/7323771067876622386"
+        }
+      ]
+    }
+  ]
+}

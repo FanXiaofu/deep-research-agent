@@ -6,14 +6,14 @@
   "unsupported_claims": [],
   "coverage": 5,
   "missing": [],
-  "citation_quality": 4,
-  "n_citations": 4,
-  "citation_validity": 1.0,
-  "source_utilization": 0.25,
-  "n_refs": 16,
+  "citation_quality": 5,
+  "n_citations": 0,
+  "citation_validity": 0.0,
+  "source_utilization": 0.0,
+  "n_refs": 23,
   "llm_calls": 6,
-  "input_tokens": 7031,
-  "output_tokens": 1360,
-  "cost_usd_est": 0.0034,
-  "elapsed_s": 157.2
+  "input_tokens": 12617,
+  "output_tokens": 1926,
+  "cost_usd_est": 0.0055,
+  "elapsed_s": 88.7
 }

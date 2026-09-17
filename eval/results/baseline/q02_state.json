@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：探究 Agentic RAG 的定义及其与传统 RAG 的核心区别。\n覆盖维度：定义、功能特点、应用场景、技术实现、优缺点对比。\n产出形式：研究报告或总结文档。",
+  "brief": "研究目标：探讨Agentic RAG的概念及其与传统RAG的核心区别。\n需覆盖维度：定义Agentic RAG、传统RAG的定义、两者区别、应用场景比较。\n期望产出：一份详细的研究报告或总结，包括定义、区别及应用场景对比。",
   "subquestions": [
-    "Agentic RAG的定义及其功能特点",
-    "Agentic RAG与传统RAG的应用场景和技术实现对比"
+    "探讨Agentic RAG的概念及其定义",
+    "传统RAG的定义及其应用场景"
   ],
   "conflicts": [],
   "notes": [
@@ -107,6 +107,58 @@
         {
           "title": "最全梳理：一文搞懂RAG技术的5种范式！",
           "url": "https://hub.baai.ac.cn/view/43613"
+        }
+      ]
+    },
+    {
+      "subquestion": "探讨Agentic RAG的概念及其定义",
+      "content": "Agentic RAG 是一种将 AI 代理的自主决策能力与 RAG 的知识检索能力深度融合的架构模式。其核心思想是不再将检索视为一个固定的管线步骤，而是将之交由一个具备规划、推理与反思能力的 AI 代理来动态编排。这种架构允许系统根据问题的复杂度自主决定何时需要检索、检索哪些资料，并评估检索结果的质量。此外，Agentic RAG 还具备工具使用能力，可以调用外部工具如搜索引擎、API、数据库查询等来扩展自身能力。这些特性使得 Agentic RAG 能够处理更复杂的问题，提供更全面和准确的答案。[1] [2] [3] [4] [5]",
+      "sources": [
+        {
+          "title": "Agentic RAG 架構設計：AI 代理驅動的企業知識檢索革命 | 超智諮詢 Meta Intelligence",
+          "url": "https://www.meta-intelligence.tech/insight-agentic-rag"
+        },
+        {
+          "title": "什麼是 Agentic RAG？AI Agent 結合 RAG 新架構 | LargitData",
+          "url": "https://www.largitdata.com/knowledge/agentic-rag"
+        },
+        {
+          "title": "What Is Agentic RAG?",
+          "url": "https://www.youtube.com/watch?v=HodCjnGv8Ag"
+        },
+        {
+          "title": "什么是智能体式 RAG？AI 智能体与检索 | Ultralytics",
+          "url": "https://www.ultralytics.com/zh/glossary/agentic-rag"
+        },
+        {
+          "title": "【论文笔记】Agentic Retrieval-Augmented Generation - A Survey on Agentic RAG - Masutangu 的博客 | Masutangu Blog",
+          "url": "https://masutangu.com/2025/02/27/paper-note-agentic-rag"
+        }
+      ]
+    },
+    {
+      "subquestion": "传统RAG的定义及其应用场景",
+      "content": "传统RAG（Retrieval-Augmented Generation）是一种结合了知识检索与文字生成能力的AI技术。它通过先从非结构化文档中检索相关片段，再结合大模型生成精准回答，特别适用于知识科普、概念解读、原理讲解等场景。传统RAG不擅长处理统计、计算类问题，但能有效提升回答的准确性和可靠性。[详解传统RAG、Text2SQL、Graph RAG：适用场景与问题示例汇总](https://www.cnblogs.com/aspnetx/p/19976120)",
+      "sources": [
+        {
+          "title": "详解传统RAG、Text2SQL、Graph RAG：适用场景与问题示例汇总 - 哥本哈士奇(aspnetx) - 博客园",
+          "url": "https://www.cnblogs.com/aspnetx/p/19976120"
+        },
+        {
+          "title": "最全梳理：一文搞懂RAG技术的5种范式！ - 智源社区",
+          "url": "https://hub.baai.ac.cn/view/43613"
+        },
+        {
+          "title": "RAG是什麼？AI關鍵RAG技術及RAG應用原理完整說明 - DC Sales Portal",
+          "url": "https://www.systexdc.com/2025/11/12/rag-technology"
+        },
+        {
+          "title": "传统 RAG 与代理 RAG——AI 智能体如何通过动态知识实现更高智能 - NVIDIA 技术博客",
+          "url": "https://developer.nvidia.cn/blog/traditional-rag-vs-agentic-rag-why-ai-agents-need-dynamic-knowledge-to-get-smarter"
+        },
+        {
+          "title": "什么是检索增强生成(RAG)？",
+          "url": "https://cloud.google.com/use-cases/retrieval-augmented-generation?hl=zh-CN"
         }
       ]
     }

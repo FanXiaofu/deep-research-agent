@@ -1,0 +1,19 @@
+{
+  "id": "q18",
+  "category": "技术趋势",
+  "question": "AI 编程助手 Copilot、Claude Code、Cursor 的工作原理有什么不同",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 40,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 8,
+  "llm_calls": 6,
+  "input_tokens": 9740,
+  "output_tokens": 1138,
+  "cost_usd_est": 0.0039,
+  "elapsed_s": 60.8
+}

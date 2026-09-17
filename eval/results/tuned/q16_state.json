@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析LLM的结构化输出及其主流实现方式。\n覆盖维度：定义结构化输出、实现机制、应用场景、优缺点。\n产出形式：研究报告，包含定义、案例分析、总结与建议。",
+  "subquestions": [
+    "定义结构化输出及其在LLM中的应用",
+    "主流实现方式及其优缺点分析"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "定义结构化输出及其在LLM中的应用",
+      "content": "结构化输出是指LLM返回的输出被格式化为明确定义的、机器可读的对象，如字典、列表、自定义类或JSON对象，而非纯文本。这种输出方式提高了系统的可靠性和可维护性，尤其是在需要将模型嵌入到工作流中时。例如，OpenAI引入了JSON Schema来帮助开发者构建更为可靠的应用程序，确保模型的输出能够精确匹配开发者所提供的JSON Schema。此外，结构化输出还涉及到边缘情况的处理，如JSON层级问题、JSON key的问题以及JSON key-value对应错误等。这些情况可能导致工作流失败，因此需要在模型输出前进行校验。结构化输出在实际项目中可以通过多种方式实现，如使用Pydantic进行严格的数据验证、使用TypedDict进行灵活的字典操作或直接使用JSON Schema。",
+      "sources": [
+        {
+          "title": "LangGraph结构化输出详解：让智能体返回格式化数据 - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7544024099765354535"
+        },
+        {
+          "title": "结构化输出（Structured Outputs） | LangChain4j 中文文档",
+          "url": "https://docs.langchain4j.info/tutorials/structured-outputs"
+        },
+        {
+          "title": "LLMForEverybody/08-第八章-大模型企业落地/大模型落地难点之结构化输出.md at main · luhengshiwo/LLMForEverybody · GitHub",
+          "url": "https://github.com/luhengshiwo/LLMForEverybody/blob/main/08-%E7%AC%AC%E5%85%AB%E7%AB%A0-%E5%A4%A7%E6%A8%A1%E5%9E%8B%E4%BC%81%E4%B8%9A%E8%90%BD%E5%9C%B0/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E8%90%BD%E5%9C%B0%E9%9A%BE%E7%82%B9%E4%B9%8B%E7%BB%93%E6%9E%84%E5%8C%96%E8%BE%93%E5%87%BA.md"
+        },
+        {
+          "title": "LLM输出格式的结构化",
+          "url": "https://apxml.com/zh/courses/prompt-engineering-llm-application-development/chapter-2-advanced-prompting-strategies/structuring-output-formats"
+        },
+        {
+          "title": "JSON 模式救不了你：生产环境 LLM 系统中的结构化输出故障",
+          "url": "https://tianpan.co/zh/blog/2026/04/09/structured-output-failures-production-llm"
+        }
+      ]
+    },
+    {
+      "subquestion": "主流实现方式及其优缺点分析",
+      "content": "主流Meta分析软件包括Stata、R和RevMan。Stata适用于累积Meta分析，R则因其丰富的程序包适合网状Meta分析。RevMan易于使用，能够整合统计和系统评价书写，但仅通过漏斗图判断发表偏倚，缺乏定量分析功能。Stata和R各有优缺点，但RevMan在易用性和整合性方面表现突出。此外，Meta分析存在固有弱点，如无法有效解决‘苹果’与‘橘子’问题。在选择Meta分析工具时，需考虑具体领域和分析需求。",
+      "sources": [
+        {
+          "title": "主流Meta分析软件功能及其在领域知识发现的拓展应用研究*",
+          "url": "https://manu44.magtech.com.cn/Jwk_infotech_wk3/article/2016/1003-3513/1003-3513-32-5-9.shtml"
+        },
+        {
+          "title": "不同白银投资方式怎么选？一文搞懂白银ETF与其他主流投资方式对比分析",
+          "url": "https://www.tradingkey.com/zh-hans/learn/intermediate/etf/how-choose-among-silver-investment-options-clear-comparison-silver-etfs-tradingkey"
+        },
+        {
+          "title": "别被ETF “赚钱神话” 误导！优缺点全解析：到底值不值得投？",
+          "url": "https://www.tradingkey.com/zh-hans/learn/intermediate/etf/etf-pros-and-cons-uncovered-tradingkey"
+        },
+        {
+          "title": "深入浅出完整解析AI Agent（AI智能体）的核心基础知识",
+          "url": "https://zhuanlan.zhihu.com/p/1919046969076195976"
+        },
+        {
+          "title": "2024年中国社区团购行业商业模式分析——社区团购快速匹配“人、货、场”【组图】 提供者 前瞻网",
+          "url": "https://cn.investing.com/news/economy/article-2298624"
+        }
+      ]
+    }
+  ]
+}

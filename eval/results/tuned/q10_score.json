@@ -1,0 +1,19 @@
+{
+  "id": "q10",
+  "category": "概念解释",
+  "question": "什么是 GraphRAG，相比向量 RAG 的优势和代价是什么",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 14,
+  "citation_validity": 1.0,
+  "source_utilization": 0.9,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 14209,
+  "output_tokens": 1286,
+  "cost_usd_est": 0.0053,
+  "elapsed_s": 72.9
+}

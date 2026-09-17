@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析Agent的ReAct模式及其局限性。\n覆盖维度：定义、工作机制、应用场景、优势与不足。\n产出形式：研究报告或综述文章。",
+  "subquestions": [
+    "Agent的ReAct模式定义及其工作机制",
+    "Agent的ReAct模式应用场景、优势与不足"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "Agent的ReAct模式定义及其工作机制",
+      "content": "ReAct 模式是一种 '推理与行动' 的范式，其核心是让智能体在面对任务时，通过推理规划行动步骤，并根据行动的结果进行观察反馈，不断循环这一过程，直至完成任务。这种模式模拟了人类解决问题的思维方式。ReAct 模式通常包含 '思考'、'行动' 和 '观察' 三个阶段，通过循环迭代，智能体能够逐步接近最终答案。在实际应用中，ReAct 模式能够通过系统提示词与用户任务的结合，让大模型按照规范输出答案。例如，当用户要求编写一个简单的 Python 脚本来计算 1 到 100 的整数和时，大模型会首先思考需要使用 Python 的循环和累加功能，然后请求调用文本编辑工具创建一个 Python 脚本文件，并写入计算代码。工具执行结果会作为 '观察' 返回给智能体主程序，智能体主程序将其加入历史消息列表，并再次发送给大模型。当脚本运行并得到计算结果后，大模型在 'thought' 之后会返回一个 'final answer'。这种模式不仅适用于简单的问答和文本生成任务，还能处理复杂任务，如在文档中查找关键词并修改字体颜色等。ReAct 模式的典型提示模板包括系统提示词，明确规定了模型的角色、运行规则以及环境信息等。",
+      "sources": [
+        {
+          "title": "深入理解Agent中的ReAct模式-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2558368"
+        },
+        {
+          "title": "ReAct vs Plan-and-Execute：LLM Agent 模式实战对比 - muzinan110 - 博客园",
+          "url": "https://www.cnblogs.com/muzinan110/p/18552824"
+        },
+        {
+          "title": "Day 22 - ReAct 模式實戰：封裝 LLM 建立可推理與行動的 Agent - iT 邦幫忙::一起幫忙解決難題，拯救 IT 人的一天",
+          "url": "https://ithelp.ithome.com.tw/articles/10385213"
+        },
+        {
+          "title": "AI-fundamentals/08_agentic_system/agent_design/docs/react-agent.md at main · ForceInjection/AI-fundamentals · GitHub",
+          "url": "https://github.com/ForceInjection/AI-fundamentals/blob/main/08_agentic_system/agent_design/docs/react-agent.md"
+        },
+        {
+          "title": "什么是 ReAct 智能体？| IBM",
+          "url": "https://www.ibm.com/cn-zh/think/topics/react-agent"
+        }
+      ]
+    },
+    {
+      "subquestion": "Agent的ReAct模式应用场景、优势与不足",
+      "content": "ReAct模式是一种将语言模型的推理能力与外部工具调用能力紧密结合的设计范式，通过Thought-Action-Observation（TAO）循环，使模型在执行任务时能够动态调整策略，提高任务完成的准确性和鲁棒性。ReAct的核心优势在于其可解释性强、错误可追溯以及支持多工具使用，但同时也存在Token消耗大、依赖工具可靠性的不足。ReAct模式适用于需要推理和行动结合的任务，如知识密集型任务、交互式决策等。其典型应用场景包括智能客服、知识助手、个性化营销等。ReAct通过引入外部工具调用，解决了传统Chain-of-Thought缺乏环境交互的问题，但其逐步推理的特性可能导致系统陷入局部最优解，需要企业手动搭建外部工具控制Agent任务进度。",
+      "sources": [
+        {
+          "title": "万字长文！AI Agent九大设计模式全景图（上），从ReAct到协作，收藏这篇就够了！_人工智能_小天才学习机打游戏-智能体开发者社区",
+          "url": "https://adg.csdn.net/6970891a437a6b40336a972c.html"
+        },
+        {
+          "title": "AI大模型实战篇：AI Agent设计模式，ReAct | 人人都是产品经理",
+          "url": "https://www.woshipm.com/it/6105809.html"
+        },
+        {
+          "title": "AI Agent设计模式 Day 1：ReAct模式：推理与行动的完美结合 - 详解 - yangykaifa - 博客园",
+          "url": "https://www.cnblogs.com/yangykaifa/p/19596130"
+        },
+        {
+          "title": "Agent全面爆发！一文搞懂背后的核心范式ReAct！-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2608465"
+        },
+        {
+          "title": "AI Agent模式全景图：从ReAct到Multi-Agent的演进之路 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/1968071452067620000"
+        }
+      ]
+    }
+  ]
+}

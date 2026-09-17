@@ -1,0 +1,19 @@
+{
+  "id": "q11",
+  "category": "技术趋势",
+  "question": "本地部署开源大模型的方案 Ollama、vLLM、llama.cpp 分别适合什么场景",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 27,
+  "citation_validity": 1.0,
+  "source_utilization": 0.778,
+  "n_refs": 9,
+  "llm_calls": 6,
+  "input_tokens": 10753,
+  "output_tokens": 1388,
+  "cost_usd_est": 0.0044,
+  "elapsed_s": 65.6
+}

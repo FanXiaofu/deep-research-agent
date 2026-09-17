@@ -1,0 +1,23 @@
+{
+  "id": "q15",
+  "category": "技术趋势",
+  "question": "10B 以下的小模型现在能胜任哪些生产级任务",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "现有信息不足以全面评估10B参数以下小模型在NLP任务范围内的应用能力"
+  ],
+  "coverage": 4,
+  "missing": [
+    "针对10B参数以下小模型在NLP任务范围内的具体评测数据和结果"
+  ],
+  "citation_quality": 4,
+  "n_citations": 9,
+  "citation_validity": 1.0,
+  "source_utilization": 0.222,
+  "n_refs": 9,
+  "llm_calls": 6,
+  "input_tokens": 11778,
+  "output_tokens": 1154,
+  "cost_usd_est": 0.0044,
+  "elapsed_s": 68.2
+}

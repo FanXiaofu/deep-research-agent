@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：探究Agentic RAG的概念及其与传统RAG的核心区别。\n覆盖维度：定义、功能特点、应用场景、技术原理对比。\n产出形式：研究报告或总结文档。",
+  "brief": "研究目标：探讨Agentic RAG的概念及其与传统RAG的核心区别。\n需要覆盖的维度：定义Agentic RAG、传统RAG的定义、两者之间的主要区别。\n期望产出形式：研究报告或总结文档。",
   "subquestions": [
-    "Agentic RAG的概念及其定义",
-    "Agentic RAG与传统RAG的功能特点对比"
+    "探讨Agentic RAG的概念及其定义",
+    "传统RAG的定义及其特点"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "DeepSearcher深度解读：Agentic RAG的出现，传统RAG的黄昏 - Zilliz 向量数据库",
           "url": "https://zilliz.com.cn/blog/DeepSearcher-Insights-Agentic-RAG"
+        }
+      ]
+    },
+    {
+      "subquestion": "探讨Agentic RAG的概念及其定义",
+      "content": "Agentic RAG 是一种将 AI 代理的自主决策能力与 RAG 的知识检索能力深度融合的架构模式。其核心思想是将知识检索视为一个动态编排的过程，而非固定管线步骤。AI 代理能够自主分析问题的复杂度与意图，制定检索计划，并根据前一轮的结果动态调整策略。这种自适应行为使得系统能在效率与质量之间取得最佳平衡。Agentic RAG 的关键创新在于其循环和推理能力，能够处理远比传统 RAG 更复杂的问题。它通过引入 AI 代理，赋予系统自主推理和决策的能力，从而显著提升系统的自适应能力和决策智能。[1] (https://www.meta-intelligence.tech/insight-agentic-rag) [2] (https://www.largitdata.com/knowledge/agentic-rag) [3] (https://www.youtube.com/watch?v=HodCjnGv8Ag) [4] (https://www.ultralytics.com/zh/glossary/agentic-rag) [5] (https://ithelp.ithome.com.tw/articles/10348870)",
+      "sources": [
+        {
+          "title": "Agentic RAG 架構設計：AI 代理驅動的企業知識檢索革命",
+          "url": "https://www.meta-intelligence.tech/insight-agentic-rag"
+        },
+        {
+          "title": "什麼是Agentic RAG？AI Agent 結合RAG 新架構",
+          "url": "https://www.largitdata.com/knowledge/agentic-rag"
+        },
+        {
+          "title": "What Is Agentic RAG?",
+          "url": "https://www.youtube.com/watch?v=HodCjnGv8Ag"
+        },
+        {
+          "title": "什么是智能体式RAG？AI 智能体与检索",
+          "url": "https://www.ultralytics.com/zh/glossary/agentic-rag"
+        },
+        {
+          "title": "【Day 21】- 從基礎到進階: 掌握RAG基礎並使用LangGraph實現Agentic RAG - iT 邦幫忙::一起幫忙解決難題，拯救 IT 人的一天",
+          "url": "https://ithelp.ithome.com.tw/articles/10348870"
+        }
+      ]
+    },
+    {
+      "subquestion": "传统RAG的定义及其特点",
+      "content": "传统RAG（Retrieval-Augmented Generation）是一种结合检索与生成的AI技术，旨在提高语言模型回答问题的准确性和相关性。它通过从外部知识库中检索相关信息，为语言模型提供上下文，从而生成更准确的答案。传统RAG简单快速，但受限于训练数据的时效性；而代理式RAG更具动态性，AI智能体主动管理信息获取方式，将RAG集成到其推理过程中，使生成的回复更加适应不断变化的情况。RAG的核心是AI查询引擎，它连接AI智能体与动态知识库，确保获取最新、最相关的信息。RAG通过检索增强生成过程，使生成式AI能够处理事实信息或数据驱动型回答，提高生成内容的准确性和实时性。RAG技术在企业应用中具有显著优势，如提高回答的准确度、增强查询的精确性、提供可解释性和可追溯性等。[1](https://developer.nvidia.cn/blog/traditional-rag-vs-agentic-rag-why-ai-agents-need-dynamic-knowledge-to-get-smarter) [2](https://cloud.google.com/use-cases/retrieval-augmented-generation?hl=zh-CN) [3](https://www.systexdc.com/2025/11/12/rag-technology) [4](https://vocus.cc/article/6764e5f6fd89780001056d24) [5](https://www.oracle.com/tw/artificial-intelligence/generative-ai/retrieval-augmented-generation-rag)",
+      "sources": [
+        {
+          "title": "传统RAG 与代理RAG——AI 智能体如何通过动态知识实现更高智能",
+          "url": "https://developer.nvidia.cn/blog/traditional-rag-vs-agentic-rag-why-ai-agents-need-dynamic-knowledge-to-get-smarter"
+        },
+        {
+          "title": "什么是检索增强生成(RAG)？",
+          "url": "https://cloud.google.com/use-cases/retrieval-augmented-generation?hl=zh-CN"
+        },
+        {
+          "title": "RAG是什麼？AI關鍵RAG技術及RAG應用原理完整說明",
+          "url": "https://www.systexdc.com/2025/11/12/rag-technology"
+        },
+        {
+          "title": "一篇文章帶你認識RAG，由淺入深",
+          "url": "https://vocus.cc/article/6764e5f6fd89780001056d24"
+        },
+        {
+          "title": "什麼是Retrieval-Augmented Generation (RAG)？",
+          "url": "https://www.oracle.com/tw/artificial-intelligence/generative-ai/retrieval-augmented-generation-rag"
         }
       ]
     }

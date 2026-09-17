@@ -1,0 +1,19 @@
+{
+  "id": "q09",
+  "category": "工具选型",
+  "question": "构建 AI 应用后端时 FastAPI 和 Flask 应该如何选型",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 14,
+  "citation_validity": 1.0,
+  "source_utilization": 1.0,
+  "n_refs": 8,
+  "llm_calls": 6,
+  "input_tokens": 8561,
+  "output_tokens": 1074,
+  "cost_usd_est": 0.0035,
+  "elapsed_s": 57.4
+}

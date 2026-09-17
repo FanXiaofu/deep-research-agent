@@ -1,0 +1,19 @@
+{
+  "id": "q16",
+  "category": "概念解释",
+  "question": "LLM 的结构化输出是什么，主流实现方式有哪些",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 7,
+  "citation_validity": 1.0,
+  "source_utilization": 0.3,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 9678,
+  "output_tokens": 1022,
+  "cost_usd_est": 0.0037,
+  "elapsed_s": 59.5
+}

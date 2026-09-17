@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：分析LLM推理中KV缓存的作用与优化方法，减少显存占用。\n覆盖维度：定义KV Cache，缓存机制，影响因素，优化策略。\n产出形式：研究报告，包含定义、原理、优化方案及案例分析。",
+  "brief": "研究目标：分析LLM推理中KV缓存的作用及其优化方法，以减少显存占用。\n覆盖维度：定义KV Cache，缓存机制对性能的影响，现有优化策略，潜在改进方向。\n产出形式：研究报告，包含定义、分析、案例研究及优化建议。",
   "subquestions": [
     "定义KV Cache及其在LLM推理中的作用",
-    "优化KV缓存机制以减少显存占用的方法与案例分析"
+    "现有优化策略对KV缓存性能影响的分析"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "基于 Amazon SageMaker 有状态路由优化大规模推理集群下的 KV Cache 复用方案 | 亚马逊AWS官方博客",
           "url": "https://aws.amazon.com/cn/blogs/china/optimizing-kv-cache-reuse-in-large-scale-inference-clusters-based-on-amazon-sagemaker-stateful-routing"
+        }
+      ]
+    },
+    {
+      "subquestion": "定义KV Cache及其在LLM推理中的作用",
+      "content": "KV Cache 是大语言模型（LLM）推理中的关键优化技术，通过缓存已计算的 Key 和 Value 矩阵，避免重复计算，显著提升了推理效率。在自回归生成过程中，KV Cache 使模型能够高效利用历史信息，从而减少计算复杂度和显存占用。具体而言，KV Cache 通过在 Prefill 阶段缓存 Key/Value 状态，Decode 阶段直接复用历史缓存，将冗余的矩阵运算转化为高效内存读取，显著降低延迟与推理成本。KV Cache 的引入使得模型在处理长文本时能够保持较高的性能，但同时也带来了显存压力，需要在精度和效率之间找到平衡点。例如，Llama-3 70B 模型在处理 64K token 时，约需 7.6GB 的 KV-cache。KV Cache 的优化技术如量化，能够显著减少内存占用，同时保持模型性能。阿里云 Tair 在构建智能分层、业务感知的 KV Cache 管理体系方面提出了新的解决方案，以应对未来多模态长上下文场景的需求。",
+      "sources": [
+        {
+          "title": "探秘Transformer系列之（20）--- KV Cache - 罗西的思考 - 博客园",
+          "url": "https://www.cnblogs.com/rossiXYZ/p/18799503"
+        },
+        {
+          "title": "LLM 推理加速技术(1)：KV Cache",
+          "url": "https://martinlwx.github.io/zh-cn/llm-inference-optimization-kv-cache"
+        },
+        {
+          "title": "深入理解KV-Cache - 大模型推理的核心加速技术 - Wilson Wu",
+          "url": "https://wilsonwu.me/blog/2025/kv-cache-in-llm"
+        },
+        {
+          "title": "KV Cache量化技术详解：深入理解LLM推理性能优化 - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7446997446019776522"
+        },
+        {
+          "title": "GTC 解读：当我们谈论 AI 推理的 KV Cache，我们在做什么？ | 极客公园",
+          "url": "https://www.geekpark.net/news/361648"
+        }
+      ]
+    },
+    {
+      "subquestion": "现有优化策略对KV缓存性能影响的分析",
+      "content": "现有研究指出，KV Cache是大语言模型推理中关键的性能优化机制，但其也带来了显存占用过高的问题。研究发现，KV Cache在处理长文本时容易导致显存爆炸，如GPT-3在处理1024长度序列时，典型配置下的KV Cache约占用4.5GB显存。为解决这一问题，Ollama团队提出了KV Cache量化技术，通过降低K/V向量的数据精度，减少显存占用，同时保持模型性能。此外，Tri-shape方法和Prefix Cache复用等策略也被提出，以优化KV Cache的使用，提高长上下文推理的可扩展性与经济性。[KV Cache量化技术详解](https://developer.volcengine.com/articles/7446997446019776522)、[KV Cache优化实战](https://cloud.tencent.com/developer/article/2703600)、[KV Cache优化策略](https://arxiv.org/pdf/2603.20397)。",
+      "sources": [
+        {
+          "title": "探秘Transformer系列之（24）--- KV Cache优化- 罗西的思考",
+          "url": "https://www.cnblogs.com/rossiXYZ/p/18811723"
+        },
+        {
+          "title": "KV Cache量化技术详解：深入理解LLM推理性能优化",
+          "url": "https://developer.volcengine.com/articles/7446997446019776522"
+        },
+        {
+          "title": "[PDF] kv cache optimization strategies for scalable - arXiv",
+          "url": "https://arxiv.org/pdf/2603.20397"
+        },
+        {
+          "title": "KV Cache优化实战：分层量化、动态淘汰、全局共享，攻克长上下文显存难题.157-腾讯云开发者社区-腾讯云",
+          "url": "https://cloud.tencent.com/developer/article/2703600"
+        },
+        {
+          "title": "长上下文不再难：KV Cache 全生命周期优化实战 - InfoQ",
+          "url": "https://www.infoq.cn/article/vvkdf9chrlqkqrtxqvxg"
         }
       ]
     }

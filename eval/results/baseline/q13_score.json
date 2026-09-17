@@ -1,0 +1,23 @@
+{
+  "id": "q13",
+  "category": "概念解释",
+  "question": "Agent 的 ReAct 模式是什么，它有什么局限性",
+  "faithfulness": 4,
+  "unsupported_claims": [
+    "虽然当前搜索结果未直接提及 ReAct 模式的具体应用案例及其局限性分析，但相关网页内容主要涉及模糊数学、加密货币、金融科技和虚拟银行等领域的应用和发展情况。这些信息对于理解 ReAct 模式的应用背景和可能的局限性分析有一定帮助，但不足以直接回答该子问题。"
+  ],
+  "coverage": 4,
+  "missing": [
+    "具体的应用案例"
+  ],
+  "citation_quality": 5,
+  "n_citations": 5,
+  "citation_validity": 1.0,
+  "source_utilization": 0.5,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 7896,
+  "output_tokens": 856,
+  "cost_usd_est": 0.0031,
+  "elapsed_s": 52.7
+}

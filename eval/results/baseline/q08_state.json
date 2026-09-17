@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：对比分析Tavily、Serper、Bing Search API的优劣。\n覆盖维度：性能、功能、安全性、成本、易用性。\n产出形式：研究报告。",
+  "brief": "研究目标：对比分析Tavily、Serper、Bing Search API的优劣。\n覆盖维度：性能、安全性、价格、功能、易用性。\n产出形式：研究报告。",
   "subquestions": [
-    "对比分析Tavily、Serper、Bing Search API在性能方面的优劣",
-    "对比分析Tavily、Serper、Bing Search API在安全性方面的优劣"
+    "性能对比分析Tavily、Serper、Bing Search API",
+    "安全性、价格、功能及易用性对比分析Tavily、Serper、Bing Search API"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "What are the Best Bing Search API Alternatives in 2026",
           "url": "https://www.firecrawl.dev/blog/bing-search-api-alternatives"
+        }
+      ]
+    },
+    {
+      "subquestion": "性能对比分析Tavily、Serper、Bing Search API",
+      "content": "Tavily 和 Serper 是两种不同的搜索 API，分别针对不同的应用场景。Tavily 是一种 AI 驱动的搜索 API，提供结构化内容和 LLM 合成答案，适合需要高质量上下文的场景。Serper 则提供 Google SERP 的结构化访问，响应速度快，适合需要实时数据的场景。在成本方面，Tavily 的价格较高，但提供更高质量的摘要和合成答案，而 Serper 则提供了更低的延迟和实际的 Google SERP 形状。对于 RAG 场景，Tavily 的 advanced 模式在质量上优于 Serper，但价格也更高。[AI Agent 联网搜索实战：Tavily、Serper、Brave Search 集成与搜索增强 RAG 完全指南](https://www.jsjson.com/blog/ai-agent-web-search-integration-guide) [Tavily vs Serper — AI Search API vs SERP API (2026)](https://fastcrw.com/alternatives/tavily-vs-serper)",
+      "sources": [
+        {
+          "title": "Tavily vs Serper — AI Search API vs SERP API (2026)",
+          "url": "https://fastcrw.com/alternatives/tavily-vs-serper"
+        },
+        {
+          "title": "AI Agent 联网搜索实战：Tavily、Serper、Brave Search 集成与搜索增强 RAG 完全指南 - jsjson",
+          "url": "https://www.jsjson.com/blog/ai-agent-web-search-integration-guide"
+        },
+        {
+          "title": "Tavily vs Exa vs Serper vs API Pick: Which Web Search API for LLMs?",
+          "url": "https://www.apipick.com/blog/tavily-exa-serper-vs-apipick"
+        },
+        {
+          "title": "Tavily 与 Exa 的对比分析 - 问答 - Glarity",
+          "url": "https://askai.glarity.app/zh-CN/search/Tavily-与-Exa-的对比分析"
+        },
+        {
+          "title": "Tavily 与 Exa 的对比分析 - 问答 - Glarity",
+          "url": "https://askai.glarity.app/zh-CN/search/Tavily-%E4%B8%8E-Exa-%E7%9A%84%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"
+        }
+      ]
+    },
+    {
+      "subquestion": "安全性、价格、功能及易用性对比分析Tavily、Serper、Bing Search API",
+      "content": "在安全性、价格、功能及易用性方面对比分析Tavily、Serper、Bing Search API。Tavily提供80+搜索引擎支持，但其信用定价较高，每月费用可能高达数千美元。Serper则提供更经济的价格，每1000查询约3-5美元。Bing Search API通过Azure提供企业级部署选项，但价格未具体提及。Tavily专注于AI代理和RAG，但价格较高，Serper和Bing Search API则提供了更具成本效益的选择。",
+      "sources": [
+        {
+          "title": "Tavily Alternatives Compared — Cost-Optimizing Search and Extraction APIs for AI Agents",
+          "url": "https://codenote.net/en/posts/tavily-alternatives-cost-comparison-search-extract-api"
+        },
+        {
+          "title": "Best Tavily Alternatives (2026) — Top 8 AI Search APIs | AISO Tools | AISO Tools",
+          "url": "https://aisotools.com/alternatives/tavily"
+        },
+        {
+          "title": "Beyond Tavily - The Complete Guide to AI Search APIs in 2026",
+          "url": "https://websearchapi.ai/blog/tavily-alternatives"
+        },
+        {
+          "title": "7 Tavily Alternatives Tested in 2026 — Cheaper, Faster ...",
+          "url": "https://fastcrw.com/blog/best-tavily-alternatives"
+        },
+        {
+          "title": "Best Tavily Alternatives (2026): AI Search API Pricing for",
+          "url": "https://www.buildmvpfast.com/alternatives/tavily"
         }
       ]
     }

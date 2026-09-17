@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析GraphRAG的定义及其与向量RAG的对比。\n需覆盖维度：定义、功能特点、优势与代价。\n产出形式：对比分析报告。",
+  "subquestions": [
+    "GraphRAG的定义及其功能特点",
+    "向量RAG的定义及其优势与代价"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "GraphRAG的定义及其功能特点",
+      "content": "GraphRAG 是一种基于图的检索增强生成方法，由微软开发并开源。它通过结合LLM和图机器学习的技术，从非结构化的文本中提取结构化的数据，构建知识图谱，以支持问答、摘要等多种应用场景。GraphRAG 的特色在于利用图机器学习算法进行语意聚合和层次化分析，从而能够回答一些高层次的抽象或总结性问题。GraphRAG 的处理流程包含 Indexing 和 Querying 两个阶段，Indexing 阶段将输入文本分割为多个可分析单元，使用LLM提取实体、关系和关键声明，然后通过层次聚类技术进行处理。Querying 阶段则通过图机器学习技术进行语义聚合和层次化分析，从而回答复杂问题。GraphRAG 相对于传统 RAG 方法，在处理私有数据集时展现出显著的性能提升，尤其是在需要全面理解大型数据集或单一大型文档的语意概念时。[1](https://www.cnblogs.com/zackstang/p/18319890)，[2](https://www.gutenberg.org/cache/epub/24022/pg24022.txt)，[3](https://www.ibm.com/cn-zh/think/topics/graphrag)，[4](https://neo4j.com/blog/genai/what-is-graphrag)，[5](https://graphragcn.com)",
+      "sources": [
+        {
+          "title": "GraphRAG介绍 - ZacksTang - 博客园",
+          "url": "https://www.cnblogs.com/zackstang/p/18319890"
+        },
+        {
+          "title": "知识图谱 GraphRAG",
+          "url": "https://www.tencentcloud.com/zh/document/product/1254/78733"
+        },
+        {
+          "title": "什么是GraphRAG？",
+          "url": "https://www.ibm.com/cn-zh/think/topics/graphrag"
+        },
+        {
+          "title": "What is GraphRAG?",
+          "url": "https://neo4j.com/blog/genai/what-is-graphrag"
+        },
+        {
+          "title": "GraphRAG:中文文档教程，助力大语言模型LLM应用开发、RAG开发",
+          "url": "https://graphragcn.com"
+        }
+      ]
+    },
+    {
+      "subquestion": "向量RAG的定义及其优势与代价",
+      "content": "向量RAG（Retrieval-Augmented Generation）是一种将外部数据源连接到大语言模型（LLM）的技术，通过检索相关的信息来增强生成的响应。向量RAG的核心在于将非结构化和结构化数据转换为向量形式，存储在向量数据库中，以便高效检索。当用户提问时，系统会检索相关数据并结合LLM生成更准确、上下文相关的答案。向量RAG的优势在于提高答案的准确性和上下文相关性，但其成本较高，因为需要额外的LLM调用。GraphRAG是向量RAG的一种改进，通过知识图谱结构化理解，解决了多跳推理和全局视图的问题。然而，GraphRAG的索引构建成本也较高，需要大量LLM调用。[GraphRAG 完全指南](https://www.meta-intelligence.tech/insight-graphrag) [RAG是什麼？AI關鍵RAG技術及RAG應用原理完整說明](https://www.systexdc.com/2025/11/12/rag-technology) [什么是检索增强生成(RAG)？](https://www.nvidia.cn/glossary/retrieval-augmented-generation)",
+      "sources": [
+        {
+          "title": "GraphRAG 完全指南：知識圖譜 + RAG 下一代檢索架構 | 超智諮詢 Meta Intelligence",
+          "url": "https://www.meta-intelligence.tech/insight-graphrag"
+        },
+        {
+          "title": "什麼是Retrieval-Augmented Generation (RAG)？",
+          "url": "https://www.oracle.com/tw/artificial-intelligence/generative-ai/retrieval-augmented-generation-rag"
+        },
+        {
+          "title": "RAG是什麼？AI關鍵RAG技術及RAG應用原理完整說明",
+          "url": "https://www.systexdc.com/2025/11/12/rag-technology"
+        },
+        {
+          "title": "什么是检索增强生成(RAG)？| NVIDIA 术语表",
+          "url": "https://www.nvidia.cn/glossary/retrieval-augmented-generation"
+        },
+        {
+          "title": "一文读懂：大模型RAG（检索增强生成）含高级方法",
+          "url": "https://zhuanlan.zhihu.com/p/675509396"
+        }
+      ]
+    }
+  ]
+}

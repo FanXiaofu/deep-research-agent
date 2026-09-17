@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：对比分析Tavily、Serper、Bing Search API的优劣。\n\n需要覆盖的维度：性能、安全性、功能、成本、易用性。\n\n期望产出形式：对比表格或图表。",
+  "brief": "研究目标：对比分析Tavily、Serper、Bing Search API的优劣。\n覆盖维度：性能、稳定性、价格、功能、易用性、文档支持。\n产出形式：对比表格或报告。",
   "subquestions": [
-    "性能对比分析Tavily、Serper、Bing Search API",
-    "安全性、功能、成本、易用性对比分析Tavily、Serper、Bing Search API"
+    "对比分析Tavily、Serper、Bing Search API在性能方面的优劣",
+    "对比分析Tavily、Serper、Bing Search API在价格方面的优劣"
   ],
   "conflicts": [],
   "notes": [
@@ -55,6 +55,58 @@
         {
           "title": "国内私有化部署需要无key 可用方案(SearxNG + Bing API + ...",
           "url": "https://github.com/apecloud/ApeRAG/issues/1800"
+        }
+      ]
+    },
+    {
+      "subquestion": "对比分析Tavily、Serper、Bing Search API在性能方面的优劣",
+      "content": "对比分析了Tavily、Serper和Bing Search API在性能方面的优劣。Tavily专为AI代理设计，但国内访问偶有波动，建议加重试机制，价格较贵。Serper是Google搜索结果的API化，支持多种搜索类型，但需要API Key。Bing Search API已退役，推荐使用替代方案如Tavily。Tavily和Serper在性能上各有优势，但Tavily在延迟上表现更佳。现有信息不足以全面评估三者的性能，建议进一步测试和比较。",
+      "sources": [
+        {
+          "title": "给 AI Agent 配搜索，国内能用的搜索 API 实测对比 - iTech - 博客园",
+          "url": "https://www.cnblogs.com/itech/p/19918043"
+        },
+        {
+          "title": "Perplexity Search API vs Tavily for RAG 2026",
+          "url": "https://alphacorp.ai/blog/perplexity-search-api-vs-tavily-for-rag-2026"
+        },
+        {
+          "title": "Best Web Search APIs: Compare Top Search API Tools - Olostep",
+          "url": "https://www.olostep.com/blog/best-web-search-apis"
+        },
+        {
+          "title": "Brave 搜索API 与其他网页搜索API 相比有何优势？",
+          "url": "https://brave.com/zh/search/api/guides/what-sets-brave-search-api-apart"
+        },
+        {
+          "title": "What are the Best Bing Search API Alternatives in 2026",
+          "url": "https://www.firecrawl.dev/blog/bing-search-api-alternatives"
+        }
+      ]
+    },
+    {
+      "subquestion": "对比分析Tavily、Serper、Bing Search API在价格方面的优劣",
+      "content": "根据现有信息，Tavily、Serper 和 Bing Search API 在价格方面各有特点。Tavily 的免费层为每月 1000 次搜索，价格为 $0.008/积分，适合日常开发测试。Serper 的免费额度为 2500 次，之后按 $2/1000 次计费。Bing Search API 已经在 2025 年 8 月 11 日退役，不再提供服务。具体价格和免费额度如下：\n- Tavily：免费层 1,000 积分/月，付费起价 $0.008/积分；\n- Serper：免费 2,500 次，之后 $2/1000 次；\n- Bing Search API：已退役。\n此外，Tavily 和 Serper 都支持 Google 搜索，但 Serper 还提供了其他搜索类型如图片、新闻等。Tavily 专为 AI Agent 设计，而 Serper 则是 Google 搜索结果的 API 化。具体信息可参考 [给 AI Agent 配搜索，国内能用的搜索 API 实测对比 - iTech - 博客园](https://www.cnblogs.com/itech/p/19918043) 和 [人工智能 - 搜索 API 哪个好用？主流方案深度横评（2026） - 个人文章 - SegmentFault 思否](https://segmentfault.com/a/1190000047789779)。",
+      "sources": [
+        {
+          "title": "给 AI Agent 配搜索，国内能用的搜索 API 实测对比 - iTech - 博客园",
+          "url": "https://www.cnblogs.com/itech/p/19918043"
+        },
+        {
+          "title": "人工智能 - 搜索 API 哪个好用？主流方案深度横评（2026） - 个人文章 - SegmentFault 思否",
+          "url": "https://segmentfault.com/a/1190000047789779"
+        },
+        {
+          "title": "Best web search API in 2026: top providers compared - Linkup",
+          "url": "https://www.linkup.so/blog/best-web-search-api-in-2026-top-providers-compared"
+        },
+        {
+          "title": "What are the Best Bing Search API Alternatives in 2026",
+          "url": "https://www.firecrawl.dev/blog/bing-search-api-alternatives"
+        },
+        {
+          "title": "Best Web Search APIs: Compare Top Search API Tools - Olostep",
+          "url": "https://www.olostep.com/blog/best-web-search-apis"
         }
       ]
     }

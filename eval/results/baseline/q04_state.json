@@ -1,8 +1,8 @@
 {
-  "brief": "研究目标：分析MCP协议及其应用场景。\n覆盖维度：定义、功能、问题解决、优缺点。\n产出形式：研究报告。",
+  "brief": "研究目标：分析MCP协议及其应用场景。\n覆盖维度：定义、功能、优势、解决的问题、实际案例。\n产出形式：研究报告或PPT。",
   "subquestions": [
-    "MCP协议定义及其应用场景",
-    "MCP协议功能、问题解决方式及其优缺点"
+    "MCP协议定义及其功能",
+    "MCP协议优势及解决的问题"
   ],
   "conflicts": [],
   "notes": [
@@ -107,6 +107,58 @@
         {
           "title": "一文看懂：MCP(大模型上下文协议)",
           "url": "https://zhuanlan.zhihu.com/p/27327515233"
+        }
+      ]
+    },
+    {
+      "subquestion": "MCP协议定义及其功能",
+      "content": "MCP（Model Context Protocol，模型上下文协议）是一种开放协议，由Anthropic于2024年11月底推出，旨在实现大型语言模型（LLM）与外部数据源、工具和服务之间的无缝集成。MCP通过标准化通信规则，提升LLM应用的功能性、灵活性和可扩展性。协议基于JSON-RPC 2.0，支持本地标准输入/输出和基于HTTP的服务器发送事件。MCP的生命周期包括初始化、运行和关闭三个阶段。MCP的核心是模型上下文，即LLM在运行过程中所需的所有外部信息和工具。MCP支持客户端向服务器提供功能，服务器则公开功能以供客户端使用。[MCP 协议](https://www.runoob.com/np/mcp-protocol.html) [什么是模型上下文协议（MCP）？](https://www.elastic.co/cn/what-is/mcp) [一文看懂：MCP(大模型上下文协议)](https://zhuanlan.zhihu.com/p/27327515233) [模型上下文协议 - 维基百科，自由的百科全书](https://zh.wikipedia.org/wiki/%E6%A8%A1%E5%9E%8B%E4%B8%8A%E4%B8%8B%E6%96%87%E5%8D%8F%E8%AE%AE)",
+      "sources": [
+        {
+          "title": "MCP 协议 | 菜鸟教程",
+          "url": "https://www.runoob.com/np/mcp-protocol.html"
+        },
+        {
+          "title": "什么是模型上下文协议（MCP）？ | Elastic",
+          "url": "https://www.elastic.co/cn/what-is/mcp"
+        },
+        {
+          "title": "一文看懂：MCP(大模型上下文协议)",
+          "url": "https://zhuanlan.zhihu.com/p/27327515233"
+        },
+        {
+          "title": "模型上下文协议（MCP）：了解安全风险与控制措施",
+          "url": "https://www.redhat.com/zh-cn/blog/model-context-protocol-mcp-understanding-security-risks-and-controls"
+        },
+        {
+          "title": "模型上下文协议 - 维基百科，自由的百科全书",
+          "url": "https://zh.wikipedia.org/wiki/%E6%A8%A1%E5%9E%8B%E4%B8%8A%E4%B8%8B%E6%96%87%E5%8D%8F%E8%AE%AE"
+        }
+      ]
+    },
+    {
+      "subquestion": "MCP协议优势及解决的问题",
+      "content": "MCP（模型上下文协议）提供了一种标准化的通信机制，使得大语言模型（LLM）能够与外部数据源和工具进行有效交互。MCP的主要优势包括标准化与通用性，通过统一的协议规范，简化了AI应用程序与外部系统的集成，降低了复杂性和维护开销。此外，MCP还促进了开源协作，增强了AI生态系统的互操作性。",
+      "sources": [
+        {
+          "title": "什么是MCP？_云计算主题库-阿里云",
+          "url": "https://www.aliyun.com/getting-started/what-is/what-is-mcp"
+        },
+        {
+          "title": "一文看懂：MCP(大模型上下文协议) - 知乎专栏",
+          "url": "https://zhuanlan.zhihu.com/p/27327515233"
+        },
+        {
+          "title": "什么是模型上下文协议（MCP）？ - Elastic",
+          "url": "https://www.elastic.co/cn/what-is/mcp"
+        },
+        {
+          "title": "解读 MCP 协议：Crypto AI 下一个催化剂? | Investing.com",
+          "url": "https://cn.investing.com/analysis/article-200491597"
+        },
+        {
+          "title": "什么是模型上下文协议 (MCP)？| IBM",
+          "url": "https://www.ibm.com/cn-zh/think/topics/model-context-protocol"
         }
       ]
     }

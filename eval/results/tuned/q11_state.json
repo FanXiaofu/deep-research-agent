@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：评估Ollama、vLLM、llama.cpp在本地部署开源大模型时的适用场景。\n\n覆盖维度：性能表现、资源需求、易用性、社区支持、定制化能力。\n\n产出形式：对比分析报告。",
+  "subquestions": [
+    "评估Ollama、vLLM、llama.cpp在本地部署开源大模型时的性能表现",
+    "评估Ollama、vLLM、llama.cpp在本地部署开源大模型时的资源需求"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "评估Ollama、vLLM、llama.cpp在本地部署开源大模型时的性能表现",
+      "content": "vLLM 是专为高并发、高吞吐场景设计的高性能推理框架，依赖 GPU 运行，不支持 CPU 推理。Ollama 是 llama.cpp 的高级封装，提供类 Docker 的模型管理体验和开箱即用的 HTTP API，其性能与 llama.cpp 基本相当。llama.cpp 是由 Georgi Gerganov 用纯 C/C++ 实现的推理引擎，支持多种硬件平台，包括 CPU 和 GPU。对于没有 NVIDIA GPU 的用户，建议使用 llama.cpp。在大规模生产场景中，vLLM 优于 Ollama，但在中小规模场景中，Ollama 是更好的选择。vLLM 对 AMD GPU 有实验性支持，但性能和稳定性不如 CUDA。SGLang 是伯克利团队开源的大模型推理引擎，具有多项性能优化，特别适合企业级应用场景。",
+      "sources": [
+        {
+          "title": "【2026最新】本地部署大模型该选哪个？Ollama / vLLM / llama ...",
+          "url": "https://openeuler.csdn.net/6a20ddae10ee7a33f2776b12.html"
+        },
+        {
+          "title": "大模型部署选Ollama还是vLLM？看完直接不踩坑",
+          "url": "https://www.bilibili.com/video/BV1ot9WBfE58"
+        },
+        {
+          "title": "大模型工具对比：SGLang, Ollama, VLLM, LLaMA.cpp如何 ...",
+          "url": "https://stable-learn.com/zh/ai-model-tools-comparison"
+        },
+        {
+          "title": "vLLM vs. Ollama vs. llama.cpp: Which LLM Runtime for DevOps?",
+          "url": "https://medium.com/devops-ai-decoded/vllm-vs-ollama-vs-llama-cpp-which-llm-runtime-for-devops-5951240f31d1"
+        },
+        {
+          "title": "I Tested Ollama vs vLLM vs llama.cpp: The \"Easiest\" One ...",
+          "url": "https://pub.towardsai.net/i-tested-ollama-vs-vllm-vs-llama-cpp-the-easiest-one-collapses-at-5-concurrent-users-d4f8e0e84886"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估Ollama、vLLM、llama.cpp在本地部署开源大模型时的资源需求",
+      "content": "根据提供的信息，Ollama、vLLM、llama.cpp在本地部署开源大模型时的资源需求各有特点。Ollama安装简单，支持多种模型，包括Llama 2和Code Llama等，适合初学者和小型项目。vLLM安装过程相对复杂，需要配置Python环境和相关依赖库，但其高效的推理性能适合大规模在线服务。llama.cpp需要配置C++开发环境，适合对性能有高要求的场景。vLLM通过PagedAttention技术和分布式推理支持，显著提高了推理性能，适合处理大量并发请求。Ollama和vLLM都支持多种模型格式，但vLLM更适合大规模生产环境。",
+      "sources": [
+        {
+          "title": "探索LLM本地运行新选择：Ollama及同类工具深度评测 - 腾讯云",
+          "url": "https://cloud.tencent.com/developer/news/2175411"
+        },
+        {
+          "title": "大模型工具对比：SGLang, Ollama, VLLM, LLaMA.cpp如何 ...",
+          "url": "https://stable-learn.com/zh/ai-model-tools-comparison"
+        },
+        {
+          "title": "vLLM 與llama.cpp 比較以及ollama安裝 - iT 邦幫忙",
+          "url": "https://ithelp.ithome.com.tw/articles/10390964"
+        },
+        {
+          "title": "vLLM 与Ollama：不同场景下如何选择",
+          "url": "https://www.redhat.com/zh-cn/topics/ai/vllm-vs-ollama"
+        },
+        {
+          "title": "这不是教程，本地大语言模型部署工具，Ollama，LM Studio, vLLM , llama.cpp,使用体验",
+          "url": "https://www.youtube.com/watch?v=fZ-rHUuDX2s"
+        }
+      ]
+    }
+  ]
+}

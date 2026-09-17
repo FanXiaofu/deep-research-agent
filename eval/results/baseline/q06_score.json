@@ -4,20 +4,18 @@
   "question": "2025 到 2026 年大模型参数高效微调的主流方法有哪些",
   "faithfulness": 4,
   "unsupported_claims": [
-    "根据阿里云文档，LoRA和QLoRA在性能-资源权衡上表现最佳，全参数微调仍适用于资源充足且任务要求极高的场景。"
+    "实际部署案例显示，PEFT 方法能够有效提升特定任务的模型性能，但成本较高，对于一般机构或企业来说，可能不是最理想的选择。"
   ],
-  "coverage": 4,
-  "missing": [
-    "优缺点比较"
-  ],
-  "citation_quality": 4,
-  "n_citations": 11,
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 24,
   "citation_validity": 1.0,
-  "source_utilization": 0.769,
-  "n_refs": 13,
+  "source_utilization": 0.368,
+  "n_refs": 19,
   "llm_calls": 6,
-  "input_tokens": 6040,
-  "output_tokens": 1207,
-  "cost_usd_est": 0.003,
-  "elapsed_s": 146.6
+  "input_tokens": 10604,
+  "output_tokens": 1704,
+  "cost_usd_est": 0.0047,
+  "elapsed_s": 79.8
 }

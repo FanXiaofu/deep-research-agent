@@ -7,13 +7,13 @@
   "coverage": 5,
   "missing": [],
   "citation_quality": 5,
-  "n_citations": 16,
+  "n_citations": 9,
   "citation_validity": 1.0,
-  "source_utilization": 0.3,
-  "n_refs": 10,
+  "source_utilization": 0.643,
+  "n_refs": 14,
   "llm_calls": 6,
-  "input_tokens": 13907,
-  "output_tokens": 1626,
-  "cost_usd_est": 0.0055,
-  "elapsed_s": 109.0
+  "input_tokens": 16297,
+  "output_tokens": 1412,
+  "cost_usd_est": 0.006,
+  "elapsed_s": 80.6
 }

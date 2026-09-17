@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：分析GraphRAG与向量RAG的区别及其优缺点。\n覆盖维度：定义、工作原理、应用场景、性能比较、优劣势分析。\n产出形式：研究报告，包含概述、详细分析、结论与建议。",
+  "subquestions": [
+    "GraphRAG与向量RAG的定义及其工作原理",
+    "GraphRAG与向量RAG的应用场景及性能比较"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "GraphRAG与向量RAG的定义及其工作原理",
+      "content": "GraphRAG 是一种通过知识图谱增强 RAG 系统的技术，旨在解决传统 RAG 在处理复杂查询时的局限性。传统 RAG 依赖于语义相似性检索文本片段，而 GraphRAG 则通过图结构数据，如知识图谱，来增强检索和生成过程。GraphRAG 能够更好地处理多跳推理和复杂关系查询，如“谁提出了相对论？”等问题。它通过识别实体、关系和社区摘要，构建知识图谱，并利用图遍历算法来收集证据，从而提供更准确的答案。相比之下，向量 RAG 则侧重于语义相似性检索，可能在处理复杂关系时表现不佳。",
+      "sources": [
+        {
+          "title": "GraphRAG 详解: 通过知识图谱提升 RAG 系统 - Zilliz 向量数据库",
+          "url": "https://zilliz.com.cn/blog/graphrag-explained-enhance-rag-with-knowledge-graphs"
+        },
+        {
+          "title": "GraphRAG vs. 向量 RAG：团队往往过晚才做的架构决策",
+          "url": "https://tianpan.co/zh/blog/2026/04/19/graphrag-vs-vector-rag-architecture-decision"
+        },
+        {
+          "title": "GraphRAG：用图结构补充向量检索 | JavaGuide",
+          "url": "https://javaguide.cn/ai/rag/graphrag.html"
+        },
+        {
+          "title": "科技新知 - 新聞與公告 - 經濟部產業技術司",
+          "url": "https://www.moea.gov.tw/MNS/doit/industrytech/IndustryTech.aspx?menu_id=13545&it_id=563"
+        },
+        {
+          "title": "什么是 GraphRAG？| IBM",
+          "url": "https://www.ibm.com/cn-zh/think/topics/graphrag"
+        }
+      ]
+    },
+    {
+      "subquestion": "GraphRAG与向量RAG的应用场景及性能比较",
+      "content": "GraphRAG与向量RAG在处理复杂关系和多实体查询时表现出显著差异。GraphRAG在涉及五个或更多实体的查询中准确率可达80-85%，而向量RAG则降至45-50%，甚至在某些情况下降至零。GraphRAG通过知识图谱将文档视为节点和关系，能够更准确地遍历复杂关系，而向量RAG则依赖于语义相似性，容易在多义性和大规模查询中出错。GraphRAG特别适用于涉及复杂关系和语义推理的查询，如合规性查询和知识元数据问题。然而，GraphRAG在处理此类问题时需要更多的时间和资源。[GraphRAG vs. Vector RAG：知识图谱何时优于向量嵌入](https://tianpan.co/zh/blog/2026/04/17/graphrag-vs-vector-rag-knowledge-graphs) [GraphRAG vs. Vector RAG: side-by-side comparison guide](https://www.meilisearch.com/blog/graph-rag-vs-vector-rag) [一文看懂GraphRAG与传统RAG的7大区别及融合方案，你会怎么选择？](https://developer.volcengine.com/articles/7411373063716995113)",
+      "sources": [
+        {
+          "title": "GraphRAG vs. Vector RAG：知识图谱何时优于向量嵌入",
+          "url": "https://tianpan.co/zh/blog/2026/04/17/graphrag-vs-vector-rag-knowledge-graphs"
+        },
+        {
+          "title": "GraphRAG vs. Vector RAG: side-by-side comparison guide",
+          "url": "https://www.meilisearch.com/blog/graph-rag-vs-vector-rag"
+        },
+        {
+          "title": "一文看懂GraphRAG与传统RAG的7大区别及融合方案，你会怎么选择？ - 文章 - 开发者社区 - 火山引擎",
+          "url": "https://developer.volcengine.com/articles/7411373063716995113"
+        },
+        {
+          "title": "RAG vs. GraphRAG: A Systematic Evaluation and Key Insights",
+          "url": "https://arxiv.org/html/2502.11371v1"
+        },
+        {
+          "title": "科技新知 - 新聞與公告 - 經濟部產業技術司",
+          "url": "https://www.moea.gov.tw/MNS/doit/industrytech/IndustryTech.aspx?menu_id=13545&it_id=563"
+        }
+      ]
+    }
+  ]
+}

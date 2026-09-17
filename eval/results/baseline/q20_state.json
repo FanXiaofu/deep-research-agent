@@ -1,0 +1,62 @@
+{
+  "brief": "研究目标：比较 Hugging Face Transformers 和 vLLM 在模型部署中的异同。\n覆盖维度：库功能、性能指标、资源需求、社区支持。\n产出形式：对比报告。",
+  "subquestions": [
+    "比较Hugging Face Transformers和vLLM的库功能差异",
+    "评估Hugging Face Transformers和vLLM在性能指标上的区别"
+  ],
+  "conflicts": [],
+  "notes": [
+    {
+      "subquestion": "比较Hugging Face Transformers和vLLM的库功能差异",
+      "content": "研究显示，vLLM在处理大型批处理任务时表现出色，平均TPS约为25，比Hugging Face Transformers的14高出约1.8倍。vLLM通过连续批处理和静态KV缓存分配提高了性能，尽管在小型工作负载中可能消耗更多VRAM，但它在处理多个并发请求时更高效。Hugging Face Transformers更适合原型设计和模型探索，而vLLM则适用于生产规模的高吞吐量生成任务。[Comparing vLLM and Hugging Face Transformers for LLM Inference](https://www.linkedin.com/posts/dedy-ariansyah_llm-vllm-huggingface-activity-7392425734872563712-j2t6) [vLLM vs Hugging Face for High-Performance LLM Inference](https://medium.com/@alishafique3/vllm-vs-hugging-face-for-high-performance-offline-llm-inference-2d953b4fb3b4) [vLLM · Hugging Face](https://huggingface.co/docs/transformers/community_integrations/vllm)",
+      "sources": [
+        {
+          "title": "Comparing vLLM and Hugging Face Transformers for LLM ...",
+          "url": "https://www.linkedin.com/posts/dedy-ariansyah_llm-vllm-huggingface-activity-7392425734872563712-j2t6"
+        },
+        {
+          "title": "vLLM vs Hugging Face for High-Performance LLM Inference",
+          "url": "https://medium.com/@alishafique3/vllm-vs-hugging-face-for-high-performance-offline-llm-inference-2d953b4fb3b4"
+        },
+        {
+          "title": "Hugging Face + vLLM: One Model Definition to Rule Them All ...",
+          "url": "https://www.youtube.com/watch?v=LnXl5YR7dyA"
+        },
+        {
+          "title": "vLLM vs Hugging Face for High-Performance Offline LLM ...",
+          "url": "https://github.com/alishafique3/vLLM-vs-Hugging-Face"
+        },
+        {
+          "title": "vLLM · Hugging Face",
+          "url": "https://huggingface.co/docs/transformers/community_integrations/vllm"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估Hugging Face Transformers和vLLM在性能指标上的区别",
+      "content": "研究显示，vLLM在处理批量推理任务时显著优于Hugging Face Transformers。vLLM通过连续批处理和静态KV缓存分配，平均达到约25 TPS，而Hugging Face Transformers则为约14 TPS，提升了约1.8倍的吞吐量。vLLM在处理大规模离线推理时表现出更高的速度和资源效率，但Hugging Face更适合原型设计和研究探索。[Comparing vLLM and Hugging Face Transformers for LLM Inference](https://www.linkedin.com/posts/dedy-ariansyah_llm-vllm-huggingface-activity-7392425734872563712-j2t6)，[vLLM vs Hugging Face for High-Performance LLM Inference](https://medium.com/@alishafique3/vllm-vs-hugging-face-for-high-performance-offline-llm-inference-2d953b4fb3b4)，[vLLM vs Hugging Face for High-Performance Offline LLM Inference](https://github.com/alishafique3/vLLM-vs-Hugging-Face)。",
+      "sources": [
+        {
+          "title": "Comparing vLLM and Hugging Face Transformers for LLM ...",
+          "url": "https://www.linkedin.com/posts/dedy-ariansyah_llm-vllm-huggingface-activity-7392425734872563712-j2t6"
+        },
+        {
+          "title": "vLLM vs Hugging Face for High-Performance LLM Inference",
+          "url": "https://medium.com/@alishafique3/vllm-vs-hugging-face-for-high-performance-offline-llm-inference-2d953b4fb3b4"
+        },
+        {
+          "title": "vLLM vs Hugging Face for High-Performance Offline LLM ...",
+          "url": "https://github.com/alishafique3/vLLM-vs-Hugging-Face"
+        },
+        {
+          "title": "Hugging Face + vLLM: One Model Definition to Rule Them All ...",
+          "url": "https://www.youtube.com/watch?v=LnXl5YR7dyA"
+        },
+        {
+          "title": "An Evaluation of vLLM and HuggingFace Pipelines",
+          "url": "https://arxiv.org/pdf/2408.01050"
+        }
+      ]
+    }
+  ]
+}

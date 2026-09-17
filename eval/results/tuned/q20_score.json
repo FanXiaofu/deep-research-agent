@@ -1,0 +1,19 @@
+{
+  "id": "q20",
+  "category": "工具选型",
+  "question": "用 Hugging Face Transformers 和 vLLM 部署模型有什么区别",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 6,
+  "citation_validity": 1.0,
+  "source_utilization": 0.571,
+  "n_refs": 7,
+  "llm_calls": 6,
+  "input_tokens": 6457,
+  "output_tokens": 984,
+  "cost_usd_est": 0.0028,
+  "elapsed_s": 51.6
+}

@@ -1,0 +1,19 @@
+{
+  "id": "q19",
+  "category": "概念解释",
+  "question": "RAG 中的重排序 rerank 是什么，为什么能提升检索效果",
+  "faithfulness": 5,
+  "unsupported_claims": [],
+  "coverage": 5,
+  "missing": [],
+  "citation_quality": 5,
+  "n_citations": 0,
+  "citation_validity": 0.0,
+  "source_utilization": 0.0,
+  "n_refs": 10,
+  "llm_calls": 6,
+  "input_tokens": 10333,
+  "output_tokens": 960,
+  "cost_usd_est": 0.0038,
+  "elapsed_s": 60.4
+}

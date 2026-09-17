@@ -134,8 +134,9 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 - [x] **W1 最小闭环**：LangGraph 线性流水线 + Tavily 检索 + CLI，产出带引用报告
 - [x] **W2 并行与工程化**：researcher 并行 fan-out（Send API）、human-in-the-loop（interrupt）、SQLite checkpoint 断点恢复（--resume）、Langfuse 全链路追踪
   - 实测：researcher 阶段 321s → 180s（本地单模型有排队损耗）；强杀进程后 `--resume` 从断点精确恢复未完成的并行分支
-- [x] **W3 评测体系**：20 题评测集 + LLM-as-judge（忠实度/覆盖度/引用质量）+ 引用确定性校验 + token 成本统计，A/B 调优对比（n=8）
-  - 实测（qwen2.5:7b 本地，judge 同模型）：**引用有效性 0.875 → 1.0**（严格 grounding 规则消除了"报告无引用"失败模式）、**来源利用率 0.621 → 0.85（+37%）**、忠实度 4.75 → 4.875，单题成本仅 +$0.001、耗时反降 5s
+- [x] **W3 评测体系**：20 题评测集 + LLM-as-judge（忠实度/覆盖度/引用质量）+ 引用确定性校验 + token 成本统计，A/B 调优对比（**全量 20 题**）
+  - 实测（qwen2.5:7b 本地，judge 同模型，两批次同题同参数）：**引用有效性 0.82 → 1.00**（baseline 有 3/20 题报告完全无引用，tuned 零失败）、**来源利用率 0.622 → 0.748（+20%）**；LLM judge 主观分持平（4.8 vs 4.8，7B judge 分辨力所限），单题成本 +$0.001、耗时 +3s
+  - 附带修复了评测工具自身的一个 bug：引用正则原先只识别单个 `[n]`，会把 `[2, 6, 12]` 这类复合引用误判为"无引用"，系统性低估 strict grounding 的效果（详见下方"评测体系"）
 - [x] **W4 交付上线**：FastAPI + SSE 流式界面（网页端 human-in-the-loop 审核）、Dockerfile + docker-compose（app + Langfuse 自托管，容器内实测跑通）、技术博客 [docs/blog.md](docs/blog.md)
   - 实测：Web 端一次完整研究 67s（并行 + think:false）；容器内 44.7s
   - 待补：README 演示 GIF（可用 ScreenToGif 录制研究过程后替换本行）
@@ -151,10 +152,12 @@ python eval/run_eval.py --compare baseline tuned                           # 生
 - 评测集：`eval/golden_questions.jsonl`（20 题，覆盖概念解释/技术对比/工具选型/技术趋势）
 - 评分维度：忠实度（论断能否在笔记中找到依据）、覆盖度（子问题覆盖）、引用质量（LLM judge 1~5）+ 引用有效性/来源利用率（确定性校验 0~1）+ token 用量与成本估算
 - A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`），换配置即换实验组，两批次同模型同题同参数，对比可复现
+- `--recompute TAG`：确定性校验规则修正后重算历史批次，无需重跑研究
+- ⚠️ 评测工具本身也要被验证：早期版本的引用正则只匹配单个 `[n]`，把 `[2, 6, 12]` 复合引用判为"无引用"，导致 tuned 被低估（0.90 → 修正后 1.00）。**指标口径错误会直接误导调优方向**，确定性指标尤其要用边界用例自测
 - 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用更强模型（如 DeepSeek-V3）复评全量 20 题
 
 ## 简历话术（W3 后已有实测数据支撑）
 
 - 基于 LangGraph 构建四角色多 Agent 深度研究系统：Send API 并行检索、上下文隔离的子 Agent、反思循环、human-in-the-loop 审批（interrupt）、SQLite checkpoint 断点恢复
-- 建立 LLM-as-judge + 确定性校验的双层评测流水线，通过严格 grounding 约束调优，**报告引用有效性 0.875→1.0、来源利用率 +37%**，单题边际成本 +$0.001
+- 建立 LLM-as-judge + 确定性校验的双层评测流水线（20 题 A/B），通过严格 grounding 约束调优，**报告引用有效性 0.82→1.00（失败案例清零）、来源利用率 +20%**，单题边际成本 +$0.001
 - 全链路 Langfuse 可观测（token 用量/延迟/执行轨迹）+ SSE 流式展示 Agent 协作过程 + Docker 一键部署

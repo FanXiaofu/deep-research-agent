@@ -1,11 +1,11 @@
 {
-  "brief": "研究目标：评估 Rust 和 Go 在编写高性能 Web 后端方面的适用性。\n\n需覆盖维度：性能指标（吞吐量、响应时间）、语言特性、生态系统支持、社区活跃度、开发效率。\n\n期望产出：对比报告，包括图表和总结。",
+  "brief": "研究目标：评估 Rust 和 Go 在构建高性能 Web 后端方面的适用性。\n\n需要覆盖的维度：性能指标（如响应时间、吞吐量）、语言特性、生态系统支持、社区活跃度、部署复杂性。\n\n期望产出形式：对比报告，包含图表和总结。",
   "subquestions": [
-    "评估Rust和Go在吞吐量和响应时间上的性能指标差异",
-    "比较Rust和Go在语言特性、生态系统支持、社区活跃度和开发效率方面的优劣"
+    "评估 Rust 和 Go 在响应时间和吞吐量方面的性能指标差异",
+    "分析 Rust 和 Go 的语言特性、生态系统支持、社区活跃度及部署复杂性对比"
   ],
   "conflicts": [
-    "Rust在吞吐量方面达到了与Go相同水平，表现为每秒处理请求的数量相当，但Rust运行速度较慢，这可能与开发者的生产力有关。这与Reddit上的讨论指出，Rust在实际应用中可能不如Go快，这可能影响其响应时间存在矛盾。"
+    "Rust在吞吐量方面达到了与Go相同水平，表现为每秒处理请求的数量相当，但Rust运行速度较慢，这可能与开发者的生产力有关。这与Rust在响应时间和吞吐量方面的性能指标差异中提到的Rust在响应时间和吞吐量方面表现出色，每秒处理的请求数更高，平均响应时间比Go短，但Go的中位响应时间更短，存在矛盾。"
   ],
   "notes": [
     {
@@ -45,6 +45,58 @@
         {
           "title": "作为全栈开发者，我该投资Go 还是Rust？ : r/golang",
           "url": "https://www.reddit.com/r/golang/comments/1owvoh6/should_i_invest_in_go_or_rust_as_a_fullstack_dev?tl=zh-hans"
+        }
+      ]
+    },
+    {
+      "subquestion": "评估 Rust 和 Go 在响应时间和吞吐量方面的性能指标差异",
+      "content": "根据提供的信息，Rust在响应时间和吞吐量方面表现出色。在处理请求数量上，Rust大约是Go的两倍，每秒处理的请求数更高。Rust的平均响应时间比Go短，但Go的中位响应时间更短。Go的响应时间变化更大，其第95百分位的响应时间显著增加。在可靠性方面，Go的服务成功率达到了100%，而Rust为99.99%。在性能方面，Rust的性能特别出色，可与C和C++相媲美，而Go则更注重开发速度。这些数据表明Rust在高并发场景下具有更好的性能和稳定性。",
+      "sources": [
+        {
+          "title": "Go和Rust开发的Web服务性能大比拼_慕课手记",
+          "url": "https://www.imooc.com/article/375769"
+        },
+        {
+          "title": "客观、全面的比较 Rust 与 Go",
+          "url": "https://polarisxu.studygolang.com/posts/go/translation/rust-vs-go"
+        },
+        {
+          "title": "Go 与Rust 在后端应用中的抉择：如何明智选择",
+          "url": "https://koder.ai/zh/blog/go-vs-rust-hou-duan-ru-he-ming-zhi-xuan-ze"
+        },
+        {
+          "title": "吵翻了！到底该选 Rust 还是 Go，成2023年最大技术分歧 - InfoQ",
+          "url": "https://www.infoq.cn/article/ukdbmezmr6zcjmrvl7ce"
+        },
+        {
+          "title": "实测：C++ vs Go vs Rust，谁的Web 性能更强？\"2026 年了",
+          "url": "https://juejin.cn/post/7636980921304465444"
+        }
+      ]
+    },
+    {
+      "subquestion": "分析 Rust 和 Go 的语言特性、生态系统支持、社区活跃度及部署复杂性对比",
+      "content": "Rust 和 Go 在性能、并发模型、类型系统、内存安全、生态系统、WebAssembly 支持及应用场景等方面各有优势。Rust 在性能、内存安全和异步模型方面表现更优，但 Go 的生态系统更为成熟，更适合快速开发。Rust 的所有权模型和编译时检查确保了更高的安全性，而 Go 的 goroutines 和通道简化了并发编程。Rust 在 WebAssembly 支持上更成熟，适合复杂、高性能场景，而 Go 更适合构建简单的辅助模块。Go 社区更广泛，但 Rust 在开发者中更受欢迎。Rust 的所有权模型和异步模型虽然复杂，但提供了更高的安全性和性能。Go 以其简洁性、高效的并发模型和成熟的生态系统在许多场景下表现出色。Grab 的案例显示，Rust 在资源消耗和成本降低方面有显著优势，但开发难度和成本也较高。",
+      "sources": [
+        {
+          "title": "Rust vs Go：全方位对比与深入剖析🚀如果你正在为项目选择合适的语言，本文将用通俗易懂的方式，从性能、并发模型、 - 掘金",
+          "url": "https://juejin.cn/post/7440074723645734963"
+        },
+        {
+          "title": "客观、全面的比较 Rust 与 Go",
+          "url": "https://polarisxu.studygolang.com/posts/go/translation/rust-vs-go"
+        },
+        {
+          "title": "Rust vs Go：现代编程语言深度对比与选择指南-腾讯云开发者社区-腾讯云",
+          "url": "https://developer.cloud.tencent.com/article/2558260"
+        },
+        {
+          "title": "Rust vs Go：解析两者的独特特性和适用场景 - 阿里云开发者社区",
+          "url": "https://developer.aliyun.com/article/1489797"
+        },
+        {
+          "title": "Go vs. Rust再掀波澜：Grab真实案例复盘，Gopher如何看待这场“效率与代价”之争？ | Tony Bai",
+          "url": "https://tonybai.com/2025/06/24/grab-rewrote-go-service-in-rust"
         }
       ]
     }
