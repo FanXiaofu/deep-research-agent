@@ -156,8 +156,3 @@ python eval/run_eval.py --compare baseline tuned                           # 生
 - ⚠️ 评测工具本身也要被验证：早期版本的引用正则只匹配单个 `[n]`，把 `[2, 6, 12]` 复合引用判为"无引用"，导致 tuned 被低估（0.90 → 修正后 1.00）。**指标口径错误会直接误导调优方向**，确定性指标尤其要用边界用例自测
 - 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用更强模型（如 DeepSeek-V3）复评全量 20 题
 
-## 简历话术（W3 后已有实测数据支撑）
-
-- 基于 LangGraph 构建四角色多 Agent 深度研究系统：Send API 并行检索、上下文隔离的子 Agent、反思循环、human-in-the-loop 审批（interrupt）、SQLite checkpoint 断点恢复
-- 建立 LLM-as-judge + 确定性校验的双层评测流水线（20 题 A/B），通过严格 grounding 约束调优，**报告引用有效性 0.82→1.00（失败案例清零）、来源利用率 +20%**，单题边际成本 +$0.001
-- 全链路 Langfuse 可观测（token 用量/延迟/执行轨迹）+ SSE 流式展示 Agent 协作过程 + Docker 一键部署
