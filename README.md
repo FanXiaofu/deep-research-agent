@@ -115,6 +115,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 子问题上限 / 检索轮数可自由填写（不再是固定下拉），旁边实时提示"预计 ≈ N 次 LLM 调用"与是否超预算
 - 勾选"审核任务书"/"审核子问题"时，对应节点后暂停，可在网页上确认或整组改写后继续（interrupt → resume）
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
+- 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 
 ## Docker 部署
 
@@ -169,8 +170,21 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
 | `MEMORY_ENABLED` / `MEMORY_DB` | 研究档案（长期记忆）开关与库文件；**默认关闭**，开启后命中记忆的子问题不再检索 |
 | `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
-| `OLLAMA_NUM_CTX` | Ollama 原生路径的上下文窗口；提示词逼近上限时在 stderr 告警（避免静默截断） |
+| `OLLAMA_NUM_CTX` / `LLM_NATIVE_OLLAMA` | Ollama 原生路径的上下文窗口与开关（原生 `/api/chat` 才能关掉 qwen3 thinking）；提示词逼近上限时在 stderr 告警 |
+| `CHECKPOINT_DB` | SQLite checkpoint 文件路径（默认 `checkpoints.db`）；容器部署时应放到持久化卷 |
+| `LLM_PRICE_INPUT_PER_M` / `LLM_PRICE_OUTPUT_PER_M` | 成本估算单价（USD / 1M tokens）；本地 Ollama 想显示 0 成本时显式设为 0 |
 | `LANGFUSE_PUBLIC_KEY/SECRET_KEY` | 都配置才启用追踪，留空自动降级关闭 |
+
+### 启动自检
+
+CLI 与 Web 启动时都会调用 `config.validate_runtime_config()`，以下情况直接失败，而不是带病启动后在检索阶段退化成空报告：
+
+- `LLM_BASE_URL` / `LLM_MODEL` 为空；
+- 远程 LLM 未配置 `LLM_API_KEY`（本地 Ollama 走 `localhost` / `127.0.0.1` / `host.docker.internal` 时可留空，或填 `EMPTY`）；
+- `SEARCH_PROVIDER=tavily` 但 `SEARCH_API_KEY` 为空；
+- 预算、规模、递归上限等数值非正数，或默认规模超过按次覆盖上限。
+
+`GET /healthz` 返回 `200` 与 `{"status":"ok",...}`；未就绪返回 `503` 与 `errors` 列表。它只读本地配置，不访问 LLM/搜索。
 
 ## 记忆分层（W6）
 
@@ -211,7 +225,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 配套的工程化改动：节点级 `retry_policy`、`GRAPH_RECURSION_LIMIT`（防循环失控）、`chat_safe`/`chat_json_safe` 降级包装（单节点失败不再毁掉整轮研究，writer 在模型不可用时用笔记兜底出报告）。
 
 ```bash
-python -m pytest tests -q     # 74 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模校验、writer 降级
+python -m pytest tests -q     # 95 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、writer 降级
 ```
 
 ## 里程碑
@@ -220,7 +234,8 @@ python -m pytest tests -q     # 74 个用例：预算判定、熔断开合、路
 - [x] **W2 并行与工程化**：researcher 并行 fan-out（Send API）、human-in-the-loop（interrupt）、SQLite checkpoint 断点恢复（--resume）、Langfuse 全链路追踪
   - 实测：researcher 阶段 321s → 180s（本地单模型有排队损耗）；强杀进程后 `--resume` 从断点精确恢复未完成的并行分支
 - [x] **W3 评测体系**：20 题评测集 + LLM-as-judge（忠实度/覆盖度/引用质量）+ 引用确定性校验 + token 成本统计，A/B 调优对比（**全量 20 题**）
-  - 实测（qwen2.5:7b 本地，judge 同模型，两批次同题同参数）：**引用有效性 0.82 → 1.00**（baseline 有 3/20 题报告完全无引用，tuned 零失败）、**来源利用率 0.622 → 0.748（+20%）**；LLM judge 主观分持平（4.8 vs 4.8，7B judge 分辨力所限），单题成本 +$0.001、耗时 +3s
+  - 实测（qwen2.5:7b 本地，judge 同模型，两批次同题同模型）：**引用有效性 0.82 → 1.00**（baseline 有 3/20 题报告完全无引用，tuned 零失败）、**来源利用率 0.622 → 0.748（+20%）**；忠实度持平（4.8 vs 4.8），覆盖度 4.80 → 4.75、引用质量 4.85 → 4.75 小幅波动（7B judge 分辨力所限），单题成本 +$0.001、耗时 +3s
+  - 口径说明：该 A/B 同时调整了 `RESEARCH_PAGE_CHARS`、`NOTE_MIN/MAX_CHARS`、`WRITER_STRICT_GROUNDING` 四个参数；代码侧引用编号注册表在 baseline 批次就已存在，因此 0.82 → 1.00 不能单独归因于"代码生成编号"，需后续单变量实验拆分贡献
   - 附带修复了评测工具自身的一个 bug：引用正则原先只识别单个 `[n]`，会把 `[2, 6, 12]` 这类复合引用误判为"无引用"，系统性低估 strict grounding 的效果（详见下方"评测体系"）
 - [x] **W4 交付上线**：FastAPI + SSE 流式界面（网页端 human-in-the-loop 审核）、Dockerfile + docker-compose（app + Langfuse 自托管，容器内实测跑通）、技术博客 [docs/blog.md](docs/blog.md)
   - 实测：Web 端一次完整研究 67s（并行 + think:false）；容器内 44.7s
@@ -235,6 +250,8 @@ python -m pytest tests -q     # 74 个用例：预算判定、熔断开合、路
   - 取舍：任务书只是原始问题的改写、出错概率低；子问题的拆解才是成本决策点（N 个子问题 = N 条并行检索分支），因此在付费前拦截回报最高，同时闸门化避免小任务被无谓打断
 - [x] **W8 规模可自定义**：子问题上限 / 检索轮数从固定下拉改为自由填写；入口统一校验（`config.validate_scale`，CLI 报错退出 / Web 400）+ 范围上限（`MAX_SUBQUESTIONS_LIMIT` / `MAX_SEARCH_ROUNDS_LIMIT`）；per-run 覆盖改走 state（`effective_max_subquestions` / `effective_max_search_rounds`）而非改全局 config，修掉同进程并发请求互相覆盖的隐患；前端实时提示"预计 ≈ N 次 LLM 调用"及超预算预警（合计 74）
   - 踩坑：`rounds <= 0` 会让 `researcher` 的 `range()` 一次都不跑 → 直接产出空笔记 + 空报告**且不报错**；`max_sub = 0` 又会被 `if max_sub:` 当 falsy 静默忽略。两者都在入口被显式拦下，并固化为测试
+- [x] **A1 交付基线**：启动配置自检（`config.validate_runtime_config`）+ `GET /healthz` + 清理死文件；测试 95 个
+  - 目标：配置错误在启动时暴露，而不是等到检索/撰写阶段退化成"未收集到资料"的空报告；`/healthz` 只读本地配置，不发起外部请求
 
 ## 评测体系（W3）
 
@@ -248,7 +265,7 @@ python eval/run_eval.py --compare baseline tuned                           # 生
 - 评分维度：忠实度（论断能否在笔记中找到依据）、覆盖度（子问题 + 必覆盖要点）、引用质量（LLM judge 1~5）+ 必覆盖要点覆盖率 / 引用有效性 / 来源利用率（0~1）+ token 用量与成本估算
 - 忠实度的对照物与 writer 实际看到的证据一致（压缩生效时用压缩后的笔记视图，避免"报告 vs 未压缩原文"系统性偏松）
 - 逐题记录预算是否超限、是否压缩、重规划轮数、降级次数：**降级过的题不应与正常题混在一起看均值**
-- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`，以及 W5 的预算/压缩/重规划参数），换配置即换实验组，两批次同模型同题同参数，对比可复现
+- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`，以及 W5 的预算/压缩/重规划参数），换配置即换实验组；两批次同模型同题，配置差异由 `comparison.md` 的「配置差异」表逐项列出
 - `--recompute TAG`：确定性校验规则修正后重算历史批次，无需重跑研究
 - ⚠️ 评测工具本身也要被验证：早期版本的引用正则只匹配单个 `[n]`，把 `[2, 6, 12]` 复合引用判为"无引用"，导致 tuned 被低估（0.90 → 修正后 1.00）。**指标口径错误会直接误导调优方向**，确定性指标尤其要用边界用例自测
 - 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用更强模型（如 DeepSeek-V3）复评全量 20 题

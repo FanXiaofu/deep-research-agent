@@ -116,6 +116,11 @@ def main() -> None:
     if not args.resume and not args.topic:
         parser.error("请提供研究主题，或使用 --resume 续跑")
 
+    try:
+        config.validate_runtime_config()
+    except RuntimeError as exc:
+        raise SystemExit(f"[配置错误] {exc}")
+
     if args.resume:
         tid = args.resume if args.resume != "__last__" else (
             LAST_THREAD_FILE.read_text(encoding="utf-8").strip() if LAST_THREAD_FILE.exists() else ""

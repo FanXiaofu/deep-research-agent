@@ -114,4 +114,74 @@ LLM_NATIVE_OLLAMA = os.getenv("LLM_NATIVE_OLLAMA", "0") == "1"
 # 客户端在估算用量接近上限时显式告警。换模型时按模型实际窗口调整。
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
+# ==== 启动自检 ====
+# 只做"不联网就能判定"的校验：缺 key、空模型名、非正数预算等。目的是让配置错误在
+# 启动时就暴露，而不是等到检索/撰写阶段退化成"未收集到资料"的空报告（那会白花 token，
+# 用户也看不到明确原因）。本地 Ollama 允许空 key；远程/局域网服务请填非空 key（可填 EMPTY）。
+_LOCAL_LLM_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal")
+
+
+def _is_local_llm() -> bool:
+    base = LLM_BASE_URL.lower()
+    return LLM_NATIVE_OLLAMA or any(host in base for host in _LOCAL_LLM_HOSTS)
+
+
+def runtime_config_errors() -> list[str]:
+    """返回启动前即可判定的配置问题；空列表表示配置可用于发起研究。"""
+    errors: list[str] = []
+
+    if not LLM_BASE_URL.strip():
+        errors.append("LLM_BASE_URL 不能为空")
+    if not LLM_MODEL.strip():
+        errors.append("LLM_MODEL 不能为空")
+    if not LLM_API_KEY.strip() and not _is_local_llm():
+        errors.append(
+            "LLM_API_KEY 未配置：远程 LLM 服务需要 key；本地 Ollama 可留空（或填 EMPTY）"
+        )
+
+    if SEARCH_PROVIDER not in ("tavily", "duckduckgo"):
+        errors.append(f"SEARCH_PROVIDER={SEARCH_PROVIDER!r} 不支持，可选：tavily / duckduckgo")
+    if SEARCH_PROVIDER == "tavily" and not SEARCH_API_KEY.strip():
+        errors.append("SEARCH_API_KEY 未配置：SEARCH_PROVIDER=tavily 时需要 Tavily key")
+
+    positive = {
+        "MAX_SUBQUESTIONS": MAX_SUBQUESTIONS,
+        "MAX_SEARCH_ROUNDS": MAX_SEARCH_ROUNDS,
+        "MAX_RESULTS_PER_SEARCH": MAX_RESULTS_PER_SEARCH,
+        "MAX_PAGE_CHARS": MAX_PAGE_CHARS,
+        "FETCH_TIMEOUT": FETCH_TIMEOUT,
+        "MAX_LLM_CALLS": MAX_LLM_CALLS,
+        "MAX_TOTAL_TOKENS": MAX_TOTAL_TOKENS,
+        "MAX_WALL_CLOCK_S": MAX_WALL_CLOCK_S,
+        "MAX_BUDGET_USD": MAX_BUDGET_USD,
+        "GRAPH_RECURSION_LIMIT": GRAPH_RECURSION_LIMIT,
+    }
+    for name, value in positive.items():
+        if value <= 0:
+            errors.append(f"{name} 必须大于 0（当前 {value}）")
+
+    if MAX_SUBQUESTIONS > MAX_SUBQUESTIONS_LIMIT:
+        errors.append(
+            f"MAX_SUBQUESTIONS={MAX_SUBQUESTIONS} 超过上限 "
+            f"MAX_SUBQUESTIONS_LIMIT={MAX_SUBQUESTIONS_LIMIT}"
+        )
+    if MAX_SEARCH_ROUNDS > MAX_SEARCH_ROUNDS_LIMIT:
+        errors.append(
+            f"MAX_SEARCH_ROUNDS={MAX_SEARCH_ROUNDS} 超过上限 "
+            f"MAX_SEARCH_ROUNDS_LIMIT={MAX_SEARCH_ROUNDS_LIMIT}"
+        )
+    if not 0 <= MEMORY_SIMILARITY_THRESHOLD <= 1:
+        errors.append(
+            f"MEMORY_SIMILARITY_THRESHOLD 需在 0~1 之间（当前 {MEMORY_SIMILARITY_THRESHOLD}）"
+        )
+    return errors
+
+
+def validate_runtime_config() -> None:
+    """启动时调用；有问题直接抛 RuntimeError，让 CLI/服务在花钱前失败。"""
+    errors = runtime_config_errors()
+    if errors:
+        raise RuntimeError("配置校验失败：\n- " + "\n- ".join(errors))
+
+
 REPORTS_DIR = BASE_DIR / "reports"

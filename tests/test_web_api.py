@@ -25,3 +25,32 @@ def test_index_renders_customisable_scale_inputs():
     assert resp.status_code == 200
     assert 'id="max-sub"' in resp.text and 'type="number"' in resp.text
     assert f'max="{config.MAX_SUBQUESTIONS_LIMIT}"' in resp.text
+
+
+def _healthy_local(monkeypatch):
+    monkeypatch.setattr(config, "LLM_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setattr(config, "LLM_MODEL", "qwen2.5:7b-instruct")
+    monkeypatch.setattr(config, "LLM_API_KEY", "")
+    monkeypatch.setattr(config, "LLM_NATIVE_OLLAMA", True)
+    monkeypatch.setattr(config, "SEARCH_PROVIDER", "duckduckgo")
+    monkeypatch.setattr(config, "SEARCH_API_KEY", "")
+
+
+def test_healthz_ok(monkeypatch):
+    _healthy_local(monkeypatch)
+
+    resp = client.get("/healthz")
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ok"
+    assert resp.json()["errors"] == []
+
+
+def test_healthz_reports_config_errors(monkeypatch):
+    _healthy_local(monkeypatch)
+    monkeypatch.setattr(config, "SEARCH_PROVIDER", "tavily")
+
+    resp = client.get("/healthz")
+
+    assert resp.status_code == 503
+    assert any("SEARCH_API_KEY" in e for e in resp.json()["errors"])

@@ -12,6 +12,7 @@
 """
 import json
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -21,14 +22,22 @@ import observability
 import reliability
 from budget import BUDGET
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
 
 from graph.build import build_research_app, make_checkpointer, thread_config
 from llm.client import USAGE
 
-app = FastAPI(title="Deep Research Agent")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # 配置错误在启动时暴露，而不是等到检索阶段退化成空报告
+    config.validate_runtime_config()
+    yield
+
+
+app = FastAPI(title="Deep Research Agent", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _research_app = None
@@ -146,6 +155,24 @@ def _stream(payload, cfg: dict, started: float):
             yield _report_event(state, time.time() - started)
         except Exception as exc:
             yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+
+
+@app.get("/healthz")
+def healthz():
+    """配置自检：只读本地配置，不访问 LLM/搜索，未就绪返回 503。"""
+    errors = config.runtime_config_errors()
+    ready = not errors
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ok" if ready else "config_error",
+            "model": config.LLM_MODEL,
+            "search_provider": config.SEARCH_PROVIDER,
+            "memory_enabled": config.MEMORY_ENABLED,
+            "langfuse_enabled": observability.is_enabled(),
+            "errors": errors,
+        },
+    )
 
 
 @app.get("/")
