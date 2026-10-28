@@ -8,25 +8,18 @@
 非空表示本轮研究已降级收敛（不再开新分支，直接把已有笔记交给 writer），
 原因与剩余额度随状态一起落盘，可在评测/前端/CLI 里审计。
 """
-import threading
-import time
-
 import config
+import run_context
 from llm.client import USAGE
 
 
 class Budget:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self.started_at = time.time()
-
     def reset(self) -> None:
-        """每次研究开始前调用（CLI 一次、Web 每个请求一次、评测每题一次）。"""
-        with self._lock:
-            self.started_at = time.time()
+        """重置当前 run 的墙钟起点（usage 不在这里清，resume 需要连续计数）。"""
+        run_context.current_run().reset_clock()
 
     def elapsed_s(self) -> float:
-        return round(time.time() - self.started_at, 1)
+        return run_context.current_run().elapsed_s()
 
     def usage(self) -> dict:
         usage = USAGE.snapshot()

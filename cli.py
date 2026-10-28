@@ -7,12 +7,14 @@
 import argparse
 import re
 import time
+import uuid
 from datetime import datetime
 
 import config
 import memory
 import observability
 import reliability
+import run_context
 from budget import BUDGET
 from graph.build import build_research_app, make_checkpointer, thread_config
 from langgraph.types import Command
@@ -128,7 +130,7 @@ def main() -> None:
         if not tid:
             raise SystemExit("没有可续跑的记录（.last_thread 不存在）")
     else:
-        tid = f"r-{datetime.now():%Y%m%d-%H%M%S}"
+        tid = f"r-{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
         LAST_THREAD_FILE.write_text(tid, encoding="utf-8")
 
     try:
@@ -170,6 +172,7 @@ def main() -> None:
         print(f"↩ 从断点续跑，待执行节点：{list(state.next)}\n")
     else:
         payload = {
+            "run_id": tid,
             "topic": args.topic,
             "notes": [],
             "review_points": [] if args.no_review else list(config.REVIEW_POINTS),
@@ -177,7 +180,8 @@ def main() -> None:
             "max_search_rounds": rounds,
         }
 
-    BUDGET.reset()          # 预算与熔断按"一次运行"计：续跑时重新起算
+    run_context.bind_run(tid)   # 主线程的 BUDGET/USAGE 统计也归到本轮
+    BUDGET.reset()              # 墙钟按一次运行计；usage 在同一 run 内连续累计
     reliability.reset_all()
     started = time.time()
     try:

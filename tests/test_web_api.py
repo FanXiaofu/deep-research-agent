@@ -54,3 +54,28 @@ def test_healthz_reports_config_errors(monkeypatch):
 
     assert resp.status_code == 503
     assert any("SEARCH_API_KEY" in e for e in resp.json()["errors"])
+
+
+def test_new_thread_id_is_unique():
+    from app.main import _new_thread_id
+
+    ids = {_new_thread_id() for _ in range(100)}
+
+    assert len(ids) == 100
+
+
+def test_report_event_uses_current_run_stats():
+    import json
+
+    import run_context
+    from app.main import _report_event
+    from llm.client import USAGE
+
+    with run_context.run_scope("stats-run"):
+        USAGE.add(12, 4)
+        raw = _report_event({"report": "# 报告"}, 1.0)
+
+    payload = json.loads(raw.split("data: ", 1)[1])
+    assert payload["stats"]["llm_calls"] == 1
+    assert payload["stats"]["input_tokens"] == 12
+    assert payload["stats"]["output_tokens"] == 4

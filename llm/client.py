@@ -6,10 +6,10 @@ Langfuse 配置了 key 时自动换成 langfuse.openai 的追踪版客户端，
 import json
 import re
 import sys
-import threading
 
 import httpx
 import observability
+import run_context
 from openai import OpenAI
 
 import config
@@ -21,38 +21,20 @@ _client: OpenAI | None = None
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
-class UsageTracker:
-    """线程安全的 token 用量累计器（并行 researcher 的调用同时计入）。
-
-    eval 用它统计单次研究的成本；CLI 场景不重置就是整个进程的累计值。
-    """
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self.calls = 0
-        self.input_tokens = 0
-        self.output_tokens = 0
+class _UsageProxy:
+    """兼容原 USAGE 接口；实际读写当前 run 的 UsageTracker。"""
 
     def reset(self) -> None:
-        with self._lock:
-            self.calls = self.input_tokens = self.output_tokens = 0
+        run_context.current_run().usage.reset()
 
     def add(self, prompt_tokens: int, completion_tokens: int) -> None:
-        with self._lock:
-            self.calls += 1
-            self.input_tokens += prompt_tokens
-            self.output_tokens += completion_tokens
+        run_context.current_run().usage.add(prompt_tokens, completion_tokens)
 
     def snapshot(self) -> dict:
-        with self._lock:
-            return {
-                "calls": self.calls,
-                "input_tokens": self.input_tokens,
-                "output_tokens": self.output_tokens,
-            }
+        return run_context.current_run().usage.snapshot()
 
 
-USAGE = UsageTracker()
+USAGE = _UsageProxy()
 
 
 def _build_client() -> OpenAI:

@@ -41,6 +41,7 @@ class MemoryHit(TypedDict):
 
 
 class ResearchState(TypedDict):
+    run_id: str                     # 本轮运行 id（= thread_id），用于隔离 usage/降级/熔断
     topic: str
     brief: str                      # coordinator 输出的研究任务书
     review_points: list[str]        # 启用的审核点位（brief/plan）；缺省走 config.REVIEW_POINTS，空=全自动

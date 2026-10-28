@@ -8,10 +8,12 @@
     GET /api/resume/stream         human-in-the-loop 审核后续跑（SSE）
     GET /api/report/{thread_id}    获取某次研究的最终报告（Markdown）
 
-单用户本地工具假设：USAGE 用量统计与 checkpoint 连接为进程级共享。
+并发：运行期状态（usage / 降级 / 熔断）按 thread_id 隔离（run_context）；
+checkpoint 连接仍是进程级共享（SQLite 单连接）。
 """
 import json
 import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +22,7 @@ import config
 import markdown as md_lib
 import observability
 import reliability
+import run_context
 from budget import BUDGET
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -53,6 +56,11 @@ NODE_LABELS = {
 }
 
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+
+def _new_thread_id() -> str:
+    """秒级时间戳只用于可读性，UUID 后缀保证同秒并发也不会共用 checkpoint。"""
+    return f"web-{datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:8]}"
 
 
 def get_research_app():
@@ -125,36 +133,45 @@ def _report_event(state: dict, elapsed: float) -> str:
 def _stream(payload, cfg: dict, started: float):
     """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。
 
-    整轮研究包在 trace_context 里，Langfuse 中表现为一条 trace（含所有 LLM span）。
+    整轮研究包在 run_scope + trace_context 里：usage/降级/熔断只属于当前 thread；
+    中断时保留上下文供 /resume 续用，正常出报告后释放。
     """
-    with observability.trace_context(cfg["configurable"]["thread_id"], trace_name="deep-research"):
-        try:
-            for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
-                if "__interrupt__" in update:
-                    intr = update["__interrupt__"][0]
-                    value = intr.value or {}
-                    yield sse({
-                        "type": "interrupt",
-                        "thread_id": cfg["configurable"]["thread_id"],
-                        "kind": value.get("kind", "brief"),
-                        "title": value.get("title", ""),
-                        "content": value.get("content", ""),
-                    })
-                    return
-                for node, out in update.items():
-                    if node in ("review_brief", "review_plan"):
-                        continue  # 审核由 interrupt 事件负责
-                    for ev in _describe(node, out):
-                        ev.update({
-                            "type": "node_done",
-                            "label": NODE_LABELS.get(node, node),
-                            "elapsed_s": round(time.time() - started, 1),
+    run_id = cfg["configurable"]["thread_id"]
+    completed = False
+    with run_context.run_scope(run_id):
+        with observability.trace_context(run_id, trace_name="deep-research"):
+            try:
+                for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
+                    if "__interrupt__" in update:
+                        intr = update["__interrupt__"][0]
+                        value = intr.value or {}
+                        yield sse({
+                            "type": "interrupt",
+                            "thread_id": run_id,
+                            "kind": value.get("kind", "brief"),
+                            "title": value.get("title", ""),
+                            "content": value.get("content", ""),
                         })
-                        yield sse(ev)
-            state = get_research_app().get_state(cfg).values or {}
-            yield _report_event(state, time.time() - started)
-        except Exception as exc:
-            yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+                        return
+                    for node, out in update.items():
+                        if node in ("review_brief", "review_plan"):
+                            continue  # 审核由 interrupt 事件负责
+                        for ev in _describe(node, out):
+                            ev.update({
+                                "type": "node_done",
+                                "label": NODE_LABELS.get(node, node),
+                                "elapsed_s": round(time.time() - started, 1),
+                            })
+                            yield sse(ev)
+                state = get_research_app().get_state(cfg).values or {}
+                event = _report_event(state, time.time() - started)
+                completed = True
+                yield event
+            except Exception as exc:
+                yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
+            finally:
+                if completed:
+                    run_context.discard_run(run_id)
 
 
 @app.get("/healthz")
@@ -211,19 +228,21 @@ def research_stream(
         list(config.REVIEW_POINTS) if points is None
         else [p.strip() for p in points.split(",") if p.strip()]
     )
-    tid = f"web-{datetime.now():%Y%m%d-%H%M%S}"
+    tid = _new_thread_id()
     cfg = thread_config(tid)
     # 规模覆盖走 state，不改全局 config —— 否则同进程内并发请求会互相覆盖
     payload = {
+        "run_id": tid,
         "topic": topic,
         "notes": [],
         "review_points": review_points,
         "max_subquestions": eff_sub,
         "max_search_rounds": eff_rounds,
     }
-    USAGE.reset()
-    BUDGET.reset()          # 预算/熔断按请求计（单用户本地工具假设，见模块说明）
-    reliability.reset_all()
+    with run_context.run_scope(tid):
+        USAGE.reset()       # 新 run 从零起算；并发请求各有独立上下文
+        BUDGET.reset()
+        reliability.reset_all()
     started = time.time()
 
     def gen():
@@ -238,8 +257,9 @@ def resume_stream(thread_id: str = Query(...), value: str = ""):
     """human-in-the-loop：value 为空表示确认原内容，非空表示整组替换（按当前中断的 kind 解释）。"""
     cfg = thread_config(thread_id)
     payload = Command(resume=value or "")
-    BUDGET.reset()          # 续跑重新起算预算（与 CLI 的 --resume 行为一致）
-    reliability.reset_all()
+    with run_context.run_scope(thread_id):
+        BUDGET.reset()              # 墙钟按这次续跑重算；usage 连续累计，不重复清零
+        reliability.reset_breakers()  # 保留上一段的降级记录，只清冷却中的熔断器
     started = time.time()
 
     def gen():

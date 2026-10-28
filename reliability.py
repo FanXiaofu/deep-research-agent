@@ -6,12 +6,14 @@
   而不是每个并行分支都去撞同一堵墙（额度耗尽 / 断网的典型场景）；
 - 降级留痕：每次降级记一条事件，供 CLI、前端和评测审计 —— 降级静默发生就等于没有降级。
 
-熔断器按名字全局共享（并行 researcher 实例共用同一个 breaker）。
+熔断器/降级事件按 run 隔离：同一轮并行 researcher 共享同一个 breaker，
+不同轮次（并发请求 / 评测不同题）互不影响。
 """
 import threading
 import time
 
 import config
+import run_context
 
 
 class CircuitBreaker:
@@ -64,40 +66,32 @@ class CircuitBreaker:
         return {"name": self.name, "state": self.state(), "failures": self._failures}
 
 
-_breakers: dict[str, CircuitBreaker] = {}
-_breakers_lock = threading.Lock()
-_degradations: list[dict] = []
-_degradations_lock = threading.Lock()
-
-
 def get_breaker(name: str) -> CircuitBreaker:
-    with _breakers_lock:
-        if name not in _breakers:
-            _breakers[name] = CircuitBreaker(
-                name, config.BREAKER_FAILURE_THRESHOLD, config.BREAKER_COOLDOWN_S
-            )
-        return _breakers[name]
+    ctx = run_context.current_run()
+    return ctx.get_or_create_breaker(
+        name,
+        lambda: CircuitBreaker(
+            name, config.BREAKER_FAILURE_THRESHOLD, config.BREAKER_COOLDOWN_S
+        ),
+    )
 
 
 def record_degradation(component: str, reason: str) -> None:
-    with _degradations_lock:
-        _degradations.append(
-            {"component": component, "reason": reason, "at_s": round(time.time() % 100000, 1)}
-        )
-        del _degradations[:-50]  # 只保留最近 50 条
+    run_context.current_run().add_degradation(component, reason)
 
 
 def degradations() -> list[dict]:
-    with _degradations_lock:
-        return list(_degradations)
+    return run_context.current_run().degradations()
 
 
 def reset_all() -> None:
-    """每轮研究开始前重置（熔断状态跨轮保留会误伤下一轮）。"""
-    with _breakers_lock:
-        _breakers.clear()
-    with _degradations_lock:
-        _degradations.clear()
+    """清空当前 run 的降级事件与熔断器（不影响其他 run）。"""
+    run_context.current_run().reset()
+
+
+def reset_breakers() -> None:
+    """只清熔断器、保留降级记录（HITL 续跑时用：旧冷却不应误伤恢复后的调用）。"""
+    run_context.current_run().reset_breakers()
 
 
 def call_with_retry(fn, *, attempts: int, delay_s: float = 1.0):

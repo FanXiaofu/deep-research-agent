@@ -37,6 +37,7 @@ ROUND_PROMPT = """你是研究助理。研究子问题：{sub}
 class ResearcherInput(TypedDict):
     subquestion: str
     max_search_rounds: int  # 由 _fan_out 随 Send payload 带下来（并行分支拿不到完整 state）
+    run_id: str             # 同上：并行分支据此绑定到本轮 usage/降级/熔断
 
 
 def _build_blocks(results: list[SearchResult], pages: dict) -> str:

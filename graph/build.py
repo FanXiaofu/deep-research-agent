@@ -24,6 +24,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy, Send
 
 import config
+import run_context
 from graph.nodes import (
     archivist,
     compactor,
@@ -40,6 +41,16 @@ from graph.state import ResearchState, effective_max_search_rounds
 _NODE_RETRY = RetryPolicy(max_attempts=2, initial_interval=1.0, retry_on=Exception)
 
 
+def _bind_run(fn):
+    """节点入口绑定本轮 run：并行 researcher 在各自线程里也能读写同一份 run 状态。"""
+
+    def wrapped(state):
+        with run_context.run_scope(state.get("run_id")):
+            return fn(state)
+
+    return wrapped
+
+
 def _fan_out(state: ResearchState) -> list[Send] | str:
     """并行派发 researcher；无新子问题（含全部命中记忆）或预算超限时走收敛路径。"""
     if state.get("budget_exceeded"):
@@ -50,7 +61,13 @@ def _fan_out(state: ResearchState) -> list[Send] | str:
         return "compactor"
     # 并行分支只拿到 Send 的 payload（不是完整 state），轮数上限必须随 payload 带下去
     rounds = effective_max_search_rounds(state)
-    return [Send("researcher", {"subquestion": sub, "max_search_rounds": rounds}) for sub in subs]
+    return [
+        Send(
+            "researcher",
+            {"subquestion": sub, "max_search_rounds": rounds, "run_id": state.get("run_id")},
+        )
+        for sub in subs
+    ]
 
 
 def _route_after_verify(state: ResearchState) -> str:
@@ -79,15 +96,15 @@ def thread_config(thread_id: str) -> dict:
 
 def build_research_app(checkpointer: SqliteSaver | None = None):
     g = StateGraph(ResearchState)
-    g.add_node("coordinator", coordinator.coordinator, retry_policy=_NODE_RETRY)
-    g.add_node("review_brief", review.review_brief)
-    g.add_node("planner", planner.planner, retry_policy=_NODE_RETRY)
-    g.add_node("review_plan", review.review_plan)
-    g.add_node("researcher", researcher.research_one, retry_policy=_NODE_RETRY)
-    g.add_node("compactor", compactor.compactor, retry_policy=_NODE_RETRY)
-    g.add_node("verifier", verifier.verifier, retry_policy=_NODE_RETRY)
-    g.add_node("writer", writer.writer, retry_policy=_NODE_RETRY)
-    g.add_node("archivist", archivist.archivist, retry_policy=_NODE_RETRY)
+    g.add_node("coordinator", _bind_run(coordinator.coordinator), retry_policy=_NODE_RETRY)
+    g.add_node("review_brief", _bind_run(review.review_brief))
+    g.add_node("planner", _bind_run(planner.planner), retry_policy=_NODE_RETRY)
+    g.add_node("review_plan", _bind_run(review.review_plan))
+    g.add_node("researcher", _bind_run(researcher.research_one), retry_policy=_NODE_RETRY)
+    g.add_node("compactor", _bind_run(compactor.compactor), retry_policy=_NODE_RETRY)
+    g.add_node("verifier", _bind_run(verifier.verifier), retry_policy=_NODE_RETRY)
+    g.add_node("writer", _bind_run(writer.writer), retry_policy=_NODE_RETRY)
+    g.add_node("archivist", _bind_run(archivist.archivist), retry_policy=_NODE_RETRY)
 
     g.add_edge(START, "coordinator")
     g.add_edge("coordinator", "review_brief")

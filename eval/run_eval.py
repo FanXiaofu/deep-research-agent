@@ -18,6 +18,7 @@ import json
 import re
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -27,6 +28,7 @@ import config
 import memory
 import observability
 import reliability
+import run_context
 from budget import BUDGET
 from graph.build import build_research_app, make_checkpointer, thread_config
 from graph.state import effective_notes
@@ -82,10 +84,13 @@ def config_snapshot(max_subquestions: int, max_search_rounds: int) -> dict:
 
 def run_question(app, q: dict, tag: str, out_dir: Path,
                  max_subquestions: int, max_search_rounds: int) -> dict:
+    # 每次评测都用新 thread：同 tag 重跑不会续用上次的 checkpoint（notes 会被追加）
+    tid = f"eval-{tag}-{q['id']}-{uuid.uuid4().hex[:8]}"
+    run_context.discard_run(tid)
+    run_context.bind_run(tid)
     USAGE.reset()
     BUDGET.reset()          # 预算与熔断按题计：上一题的降级不应污染本题的记录
     reliability.reset_all()
-    tid = f"eval-{tag}-{q['id']}"
     thread_cfg = thread_config(tid)
     started = time.time()
     row = {"id": q["id"], "category": q["category"], "question": q["question"]}
@@ -97,6 +102,7 @@ def run_question(app, q: dict, tag: str, out_dir: Path,
         try:
             final = app.invoke(
                 {
+                    "run_id": tid,
                     "topic": q["question"],
                     "notes": [],
                     "review_points": [],

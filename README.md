@@ -116,6 +116,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 勾选"审核任务书"/"审核子问题"时，对应节点后暂停，可在网页上确认或整组改写后继续（interrupt → resume）
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
+- 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
 
 ## Docker 部署
 
@@ -224,8 +225,10 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 
 配套的工程化改动：节点级 `retry_policy`、`GRAPH_RECURSION_LIMIT`（防循环失控）、`chat_safe`/`chat_json_safe` 降级包装（单节点失败不再毁掉整轮研究，writer 在模型不可用时用笔记兜底出报告）。
 
+运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
+
 ```bash
-python -m pytest tests -q     # 95 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、writer 降级
+python -m pytest tests -q     # 106 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、writer 降级
 ```
 
 ## 里程碑
@@ -252,6 +255,8 @@ python -m pytest tests -q     # 95 个用例：预算判定、熔断开合、路
   - 踩坑：`rounds <= 0` 会让 `researcher` 的 `range()` 一次都不跑 → 直接产出空笔记 + 空报告**且不报错**；`max_sub = 0` 又会被 `if max_sub:` 当 falsy 静默忽略。两者都在入口被显式拦下，并固化为测试
 - [x] **A1 交付基线**：启动配置自检（`config.validate_runtime_config`）+ `GET /healthz` + 清理死文件；测试 95 个
   - 目标：配置错误在启动时暴露，而不是等到检索/撰写阶段退化成"未收集到资料"的空报告；`/healthz` 只读本地配置，不发起外部请求
+- [x] **B1 请求隔离**：usage / 预算时钟 / 降级事件 / 熔断器按 `thread_id` 隔离（`run_context.py`）；Web thread_id 加 UUID 后缀；HITL 续跑保留 usage、只重算墙钟；评测每题独立 thread，同 tag 可重跑；测试 106 个
+  - 验证：三路并发 SSE 流各自只统计自己的调用；同 thread 重跑不再追加旧笔记；续跑 `BUDGET.reset()` 不会清零已用调用数
 
 ## 评测体系（W3）
 
