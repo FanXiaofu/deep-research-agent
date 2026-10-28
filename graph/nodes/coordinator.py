@@ -1,6 +1,10 @@
-"""coordinator：把用户的原始问题改写成清晰的研究任务书（brief）。"""
+"""coordinator：把用户的原始问题改写成清晰的研究任务书（brief）。
+
+改写失败（模型不可用）时退回原始问题当任务书：任务书只是给 planner 的输入，
+不值得为了它中断整轮研究。
+"""
 from graph.state import ResearchState
-from llm.client import chat
+from llm.client import chat_safe
 
 PROMPT = """你是深度研究协调员。用户的原始研究请求如下：
 {topic}
@@ -10,8 +14,10 @@ PROMPT = """你是深度研究协调员。用户的原始研究请求如下：
 
 
 def coordinator(state: ResearchState) -> dict:
-    brief = chat(
+    brief = chat_safe(
         [{"role": "user", "content": PROMPT.format(topic=state["topic"])}],
         temperature=0.2,
+        fallback=state["topic"],
+        what="任务书生成",
     ).strip()
-    return {"brief": brief}
+    return {"brief": brief or state["topic"]}

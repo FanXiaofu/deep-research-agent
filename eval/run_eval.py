@@ -24,8 +24,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 以脚本方式运行时把项目根目录加入可导入路径
 
 import config
+import memory
 import observability
-from graph.build import build_research_app, make_checkpointer
+import reliability
+from budget import BUDGET
+from graph.build import build_research_app, make_checkpointer, thread_config
+from graph.state import effective_notes
 from judge import citation_checks, judge_report
 from llm.client import USAGE
 
@@ -33,7 +37,7 @@ EVAL_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = EVAL_DIR / "results"
 DATASET_PATH = EVAL_DIR / "golden_questions.jsonl"
 
-SCORE_KEYS = ["faithfulness", "coverage", "citation_quality"]
+SCORE_KEYS = ["faithfulness", "coverage", "citation_quality", "must_cover_coverage"]
 HARD_KEYS = ["citation_validity", "source_utilization"]
 
 
@@ -49,12 +53,12 @@ def count_refs(report: str) -> int:
     return len([line for line in match.group(1).strip().splitlines() if re.match(r"^\d+\.\s", line.strip())])
 
 
-def config_snapshot() -> dict:
+def config_snapshot(max_subquestions: int, max_search_rounds: int) -> dict:
     return {
         "llm_model": config.LLM_MODEL,
         "llm_base_url": config.LLM_BASE_URL,
-        "max_subquestions": config.MAX_SUBQUESTIONS,
-        "max_search_rounds": config.MAX_SEARCH_ROUNDS,
+        "max_subquestions": max_subquestions,
+        "max_search_rounds": max_search_rounds,
         "max_results_per_search": config.MAX_RESULTS_PER_SEARCH,
         "research_page_chars": config.RESEARCH_PAGE_CHARS,
         "note_min_chars": config.NOTE_MIN_CHARS,
@@ -62,13 +66,27 @@ def config_snapshot() -> dict:
         "writer_strict_grounding": config.WRITER_STRICT_GROUNDING,
         "price_input_per_m": config.LLM_PRICE_INPUT_PER_M,
         "price_output_per_m": config.LLM_PRICE_OUTPUT_PER_M,
+        # 长流程控制（A/B 时若两批不一致，对比表会标出来）
+        "max_llm_calls": config.MAX_LLM_CALLS,
+        "max_total_tokens": config.MAX_TOTAL_TOKENS,
+        "max_wall_clock_s": config.MAX_WALL_CLOCK_S,
+        "max_replan_rounds": config.MAX_REPLAN_ROUNDS,
+        "compaction_enabled": config.COMPACTION_ENABLED,
+        "compact_trigger_chars": config.COMPACT_TRIGGER_CHARS,
+        # 研究档案（长期记忆）：开启后命中记忆的题目会跳过检索，两批次必须一致才有可比性
+        "memory_enabled": config.MEMORY_ENABLED,
+        "memory_similarity_threshold": config.MEMORY_SIMILARITY_THRESHOLD,
+        "memory_max_age_days": config.MEMORY_MAX_AGE_DAYS,
     }
 
 
-def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
+def run_question(app, q: dict, tag: str, out_dir: Path,
+                 max_subquestions: int, max_search_rounds: int) -> dict:
     USAGE.reset()
+    BUDGET.reset()          # 预算与熔断按题计：上一题的降级不应污染本题的记录
+    reliability.reset_all()
     tid = f"eval-{tag}-{q['id']}"
-    thread_cfg = {"configurable": {"thread_id": tid}}
+    thread_cfg = thread_config(tid)
     started = time.time()
     row = {"id": q["id"], "category": q["category"], "question": q["question"]}
 
@@ -78,7 +96,14 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
     ):
         try:
             final = app.invoke(
-                {"topic": q["question"], "notes": [], "require_review": False}, thread_cfg
+                {
+                    "topic": q["question"],
+                    "notes": [],
+                    "review_points": [],
+                    "max_subquestions": max_subquestions,
+                    "max_search_rounds": max_search_rounds,
+                },
+                thread_cfg,
             )
         except Exception as exc:
             row["error"] = f"{type(exc).__name__}: {exc}"
@@ -91,6 +116,9 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
             row["error"] = "未生成报告"
             return row
 
+        # 忠实度的对照物必须与 writer 实际看到的证据一致：压缩生效时用压缩视图，
+        # 否则"报告 vs 未压缩原文"的比对会系统性偏松。
+        evidence = effective_notes(final) or notes
         (out_dir / f"{q['id']}.md").write_text(report, encoding="utf-8")
         (out_dir / f"{q['id']}_state.json").write_text(
             json.dumps(
@@ -98,7 +126,17 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
                     "brief": final.get("brief", ""),
                     "subquestions": final.get("subquestions", []),
                     "conflicts": final.get("conflicts", []),
-                    "notes": notes,
+                    "gaps": final.get("gaps", []),
+                    "replan_count": final.get("replan_count", 0),
+                    "budget_exceeded": final.get("budget_exceeded", ""),
+                    "remaining": BUDGET.remaining(),
+                    "compaction": final.get("compaction", {}),
+                    "memory_reused": final.get("memory_reused", []),
+                    "memory_written": final.get("memory_written", 0),
+                    "degradations": reliability.degradations(),
+                    "n_notes_raw": len(notes),
+                    "n_notes_evidence": len(evidence),
+                    "notes": evidence,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -117,8 +155,9 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
             brief=final.get("brief", ""),
             subquestions=final.get("subquestions", []),
             report=report,
-            notes=notes,
+            notes=evidence,
             n_refs=n_refs,
+            must_cover=q.get("must_cover", []),
         )
         row.update(scores)
         row.update(
@@ -129,6 +168,12 @@ def run_question(app, q: dict, tag: str, out_dir: Path) -> dict:
                 "output_tokens": usage["output_tokens"],
                 "cost_usd_est": round(cost, 4),
                 "elapsed_s": round(time.time() - started, 1),
+                "budget_exceeded": final.get("budget_exceeded", ""),
+                "replan_count": final.get("replan_count", 0),
+                "compacted": bool(final.get("compaction", {}).get("applied")),
+                "memory_reused": len(final.get("memory_reused") or []),
+                "memory_written": final.get("memory_written", 0),
+                "n_degradations": len(reliability.degradations()),
             }
         )
         (out_dir / f"{q['id']}_score.json").write_text(
@@ -142,7 +187,7 @@ def mean(rows: list[dict], key: str):
     return round(sum(values) / len(values), 3) if values else None
 
 
-def evaluate(args) -> None:
+def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
     questions = load_questions(args.limit, args.offset)
     if not questions:
         raise SystemExit("评测集为空或 offset 越界")
@@ -150,11 +195,17 @@ def evaluate(args) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"== 评测批次 {args.tag}：{len(questions)} 题 | 模型 {config.LLM_MODEL} ==", flush=True)
+    if config.MEMORY_ENABLED:
+        print(
+            f"== 研究档案：已启用（阈值 {config.MEMORY_SIMILARITY_THRESHOLD}，"
+            f"寿命 {config.MEMORY_MAX_AGE_DAYS:g} 天）｜ 当前 {memory.stats()['entries']} 条记忆 ==",
+            flush=True,
+        )
     app = build_research_app(make_checkpointer())
     rows = []
     for i, q in enumerate(questions, 1):
         print(f"[{i}/{len(questions)}] {q['id']} {q['question'][:40]} ...", flush=True)
-        row = run_question(app, q, args.tag, out_dir)
+        row = run_question(app, q, args.tag, out_dir, max_subquestions, max_search_rounds)
         if row.get("error"):
             print(f"    ✗ 失败：{row['error'][:120]}", flush=True)
         else:
@@ -169,7 +220,7 @@ def evaluate(args) -> None:
         summary = {
             "tag": args.tag,
             "finished_at": datetime.now().isoformat(timespec="seconds"),
-            "config": config_snapshot(),
+            "config": config_snapshot(max_subquestions, max_search_rounds),
             "rows": rows,
             "means": {k: mean(rows, k) for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]},
         }
@@ -190,26 +241,42 @@ def write_summary_md(summary: dict, out_dir: Path) -> None:
         f"- 时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：同模型",
         f"- 配置：page_chars={cfg['research_page_chars']}, note={cfg['note_min_chars']}~{cfg['note_max_chars']}"
         f", strict_grounding={cfg['writer_strict_grounding']}, max_sub={cfg['max_subquestions']}, rounds={cfg['max_search_rounds']}",
+        f"- 预算：{cfg['max_llm_calls']} 调用 / {cfg['max_total_tokens']} tokens / {cfg['max_wall_clock_s']}s"
+        f"　|　重规划上限 {cfg['max_replan_rounds']}　|　压缩触发 {cfg['compact_trigger_chars']} 字"
+        f"（{'开' if cfg['compaction_enabled'] else '关'}）",
         "",
-        "| 题目 | 忠实度 | 覆盖度 | 引用(LLM) | 引用有效 | 来源利用 | tokens(入/出) | 耗时s |",
-        "|---|---|---|---|---|---|---|---|",
+        "| 题目 | 忠实度 | 覆盖度 | 要点覆盖 | 引用(LLM) | 引用有效 | 来源利用 | tokens(入/出) | 耗时s | 状态 |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         if r.get("error"):
-            lines.append(f"| {r['id']} {r['question'][:16]} | ERROR: {r['error'][:60]} | - | - | - | - | - | - |")
+            lines.append(f"| {r['id']} {r['question'][:16]} | ERROR: {r['error'][:60]} | - | - | - | - | - | - | - | - |")
             continue
+        flags = []
+        if r.get("budget_exceeded"):
+            flags.append(f"预算:{r['budget_exceeded']}")
+        if r.get("compacted"):
+            flags.append("已压缩")
+        if r.get("replan_count"):
+            flags.append(f"重规划{r['replan_count']}")
+        if r.get("memory_reused"):
+            flags.append(f"记忆{r['memory_reused']}")
+        if r.get("n_degradations"):
+            flags.append(f"降级{r['n_degradations']}")
         lines.append(
             f"| {r['id']} {r['question'][:16]} | {r['faithfulness']} | {r['coverage']} "
-            f"| {r['citation_quality']} | {r['citation_validity']} | {r['source_utilization']} "
-            f"| {r['input_tokens']}/{r['output_tokens']} | {r['elapsed_s']} |"
+            f"| {r.get('must_cover_coverage', '-')} | {r['citation_quality']} | {r['citation_validity']} "
+            f"| {r['source_utilization']} | {r['input_tokens']}/{r['output_tokens']} | {r['elapsed_s']} "
+            f"| {' / '.join(flags) or '正常'} |"
         )
     lines += [
         "",
-        f"**均值**：忠实度 {means['faithfulness']} ｜ 覆盖度 {means['coverage']} ｜ 引用质量 {means['citation_quality']}"
-        f" ｜ 引用有效性 {means['citation_validity']} ｜ 来源利用率 {means['source_utilization']}"
+        f"**均值**：忠实度 {means['faithfulness']} ｜ 覆盖度 {means['coverage']} ｜ 必覆盖要点覆盖率 {means.get('must_cover_coverage')}"
+        f" ｜ 引用质量 {means['citation_quality']} ｜ 引用有效性 {means['citation_validity']} ｜ 来源利用率 {means['source_utilization']}"
         f" ｜ 单题成本估算 ${means['cost_usd_est']} ｜ 单题耗时 {means['elapsed_s']}s",
         "",
         "> 注：judge 与研究使用同一模型，小模型当 judge 有系统性偏差，分数用于 A/B 相对对比；",
+        "> 必覆盖要点覆盖率来自评测集 must_cover 清单（judge 逐条判定 + 代码做措辞对齐）；",
         "> 正式对外数字建议用更强模型（如 DeepSeek-V3）复评并跑全量 20 题。",
         "",
     ]
@@ -245,6 +312,7 @@ def compare(tag_a: str, tag_b: str) -> None:
         "|---|---|---|---|",
     ]
     label = {"faithfulness": "忠实度(1-5)", "coverage": "覆盖度(1-5)", "citation_quality": "引用质量(1-5)",
+             "must_cover_coverage": "必覆盖要点覆盖率(0-1)",
              "citation_validity": "引用有效性(0-1)", "source_utilization": "来源利用率(0-1)",
              "cost_usd_est": "单题成本估算($)", "elapsed_s": "单题耗时(s)"}
     for key in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]:
@@ -322,23 +390,33 @@ def main() -> None:
     parser.add_argument("--tag", help="批次名（baseline / tuned ...）")
     parser.add_argument("--limit", type=int, default=8, help="评测题数（默认 8，全集 20 题）")
     parser.add_argument("--offset", type=int, default=0, help="从第几题开始")
-    parser.add_argument("--max-sub", type=int, help="覆盖 config.MAX_SUBQUESTIONS（两批次需一致）")
-    parser.add_argument("--rounds", type=int, help="覆盖 config.MAX_SEARCH_ROUNDS")
+    parser.add_argument("--max-sub", type=int,
+                        help=f"覆盖子问题上限（1~{config.MAX_SUBQUESTIONS_LIMIT}；两批次需一致）")
+    parser.add_argument("--rounds", type=int,
+                        help=f"覆盖每个子问题最大检索轮数（1~{config.MAX_SEARCH_ROUNDS_LIMIT}）")
     parser.add_argument("--compare", nargs=2, metavar=("TAG_A", "TAG_B"), help="生成两个批次的对比报告")
     parser.add_argument("--recompute", metavar="TAG", help="按修复后的规则重算既有批次的确定性指标")
+    parser.add_argument("--memory", choices=["on", "off"], help="覆盖 MEMORY_ENABLED（A/B 用）")
+    parser.add_argument("--reset-memory", action="store_true",
+                        help="开跑前清空研究档案（保证两批次起点一致；跑 with-memory 批次前必做）")
     args = parser.parse_args()
 
-    if args.max_sub:
-        config.MAX_SUBQUESTIONS = args.max_sub
-    if args.rounds:
-        config.MAX_SEARCH_ROUNDS = args.rounds
+    try:
+        max_subquestions, max_search_rounds = config.validate_scale(args.max_sub, args.rounds)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.memory:
+        config.MEMORY_ENABLED = args.memory == "on"
 
     if args.recompute:
         recompute(args.recompute)
     elif args.compare:
         compare(args.compare[0], args.compare[1])
     elif args.tag:
-        evaluate(args)
+        if args.reset_memory:
+            deleted = memory.reset()
+            print(f"== 已清空研究档案：{deleted} 条 ==", flush=True)
+        evaluate(args, max_subquestions, max_search_rounds)
     else:
         parser.error("需要 --tag、--compare 或 --recompute")
 

@@ -32,6 +32,67 @@ MAX_RESULTS_PER_SEARCH = int(os.getenv("MAX_RESULTS_PER_SEARCH", "5"))
 MAX_PAGE_CHARS = int(os.getenv("MAX_PAGE_CHARS", "6000"))
 FETCH_TIMEOUT = float(os.getenv("FETCH_TIMEOUT", "15"))
 
+# 自定义规模的合法范围：Web/CLI 允许按次覆盖，但越界即报错而不是静默降级
+# （rounds<=0 会让 researcher 循环一次都不跑，直接产出空笔记 + 空报告）
+MAX_SUBQUESTIONS_LIMIT = int(os.getenv("MAX_SUBQUESTIONS_LIMIT", "8"))
+MAX_SEARCH_ROUNDS_LIMIT = int(os.getenv("MAX_SEARCH_ROUNDS_LIMIT", "5"))
+
+
+def validate_scale(max_sub: int | None = None, rounds: int | None = None) -> tuple[int, int]:
+    """校验按次覆盖的规模参数，返回生效的 (子问题上限, 检索轮数)；缺省回落 .env 配置。
+
+    这是系统边界（用户输入）上的唯一一道校验，越界/非正数抛 ValueError；
+    节点侧因此不必重复防御 —— 也顺手修掉了 `if max_sub:` 把 0 当 falsy 静默忽略的问题。
+    """
+    sub = MAX_SUBQUESTIONS if max_sub is None else int(max_sub)
+    rnd = MAX_SEARCH_ROUNDS if rounds is None else int(rounds)
+    if not 1 <= sub <= MAX_SUBQUESTIONS_LIMIT:
+        raise ValueError(f"子问题上限需在 1~{MAX_SUBQUESTIONS_LIMIT} 之间（收到 {sub}）")
+    if not 1 <= rnd <= MAX_SEARCH_ROUNDS_LIMIT:
+        raise ValueError(f"检索轮数需在 1~{MAX_SEARCH_ROUNDS_LIMIT} 之间（收到 {rnd}）")
+    return sub, rnd
+
+
+# ==== 全局预算（长流程硬闸门：任一维度超限即停止新增分支，收敛出报告）====
+# MAX_SUBQUESTIONS 只约束单次规划，这里约束整轮研究的总消耗（含重规划新增的分支）。
+MAX_LLM_CALLS = int(os.getenv("MAX_LLM_CALLS", "40"))
+MAX_TOTAL_TOKENS = int(os.getenv("MAX_TOTAL_TOKENS", "120000"))
+MAX_WALL_CLOCK_S = float(os.getenv("MAX_WALL_CLOCK_S", "900"))
+MAX_BUDGET_USD = float(os.getenv("MAX_BUDGET_USD", "0.5"))
+
+# ==== 重规划（verifier 报告缺口/冲突后回到 planner 追加子问题）====
+MAX_REPLAN_ROUNDS = int(os.getenv("MAX_REPLAN_ROUNDS", "1"))
+MAX_FOLLOWUP_SUBQUESTIONS = int(os.getenv("MAX_FOLLOWUP_SUBQUESTIONS", "2"))
+
+# ==== 人工审核点位（human-in-the-loop）====
+# 逗号分隔，取值 brief / plan（none 或留空 = 全自动不中断）：
+#   brief = coordinator 之后审核研究任务书；
+#   plan  = 首次 planner 拆解之后、fan-out 之前审核子问题——这里是"花钱前"的最后一道关，
+#           重规划（verifier 回边）不再中断，避免一次研究被反复打断。
+REVIEW_POINTS = [p.strip() for p in os.getenv("REVIEW_POINTS", "brief").split(",") if p.strip()]
+# plan 审核的最小触发规模：子问题数达到该值才暂停（默认 0 = 总是暂停），避免小任务被无谓打断
+PLAN_REVIEW_MIN_SUBQUESTIONS = int(os.getenv("PLAN_REVIEW_MIN_SUBQUESTIONS", "0"))
+
+# ==== 上下文压缩（笔记正文超阈值时压缩后再进消费节点，压缩不改来源列表）====
+COMPACTION_ENABLED = os.getenv("COMPACTION_ENABLED", "1") == "1"
+COMPACT_TRIGGER_CHARS = int(os.getenv("COMPACT_TRIGGER_CHARS", "12000"))
+COMPACT_TARGET_CHARS = int(os.getenv("COMPACT_TARGET_CHARS", "4000"))
+
+# ==== 外部依赖容错（搜索/抓取的重试与熔断）====
+SEARCH_RETRIES = int(os.getenv("SEARCH_RETRIES", "2"))
+BREAKER_FAILURE_THRESHOLD = int(os.getenv("BREAKER_FAILURE_THRESHOLD", "3"))
+BREAKER_COOLDOWN_S = float(os.getenv("BREAKER_COOLDOWN_S", "60"))
+GRAPH_RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "50"))
+
+# ==== 研究档案（长期记忆）====
+# 默认关闭：开启后同一（或相似）子问题会直接复用历史笔记、不再检索，
+# 这会改变评测的对照条件 —— 做 A/B 时必须显式打开并先重置记忆库（run_eval.py --reset-memory）。
+MEMORY_ENABLED = os.getenv("MEMORY_ENABLED", "0") == "1"
+MEMORY_DB = os.getenv("MEMORY_DB", str(BASE_DIR / "memory.db"))
+MEMORY_SIMILARITY_THRESHOLD = float(os.getenv("MEMORY_SIMILARITY_THRESHOLD", "0.62"))
+MEMORY_MAX_AGE_DAYS = float(os.getenv("MEMORY_MAX_AGE_DAYS", "30"))
+MEMORY_MAX_HITS = int(os.getenv("MEMORY_MAX_HITS", "4"))
+
 # ==== W3 A/B 调优开关（eval 对比用；改 .env 即可切换实验组）====
 RESEARCH_PAGE_CHARS = int(os.getenv("RESEARCH_PAGE_CHARS", "1200"))  # 网页正文进入提示词的上限
 NOTE_MIN_CHARS = int(os.getenv("NOTE_MIN_CHARS", "200"))             # 研究笔记字数下限
@@ -49,5 +110,8 @@ LLM_PROMPT_SUFFIX = os.getenv("LLM_PROMPT_SUFFIX", "")
 # 走 Ollama 原生 /api/chat（自动 think:false）。qwen3 的思考 token 不计入 usage 却主导延迟，
 # OpenAI 兼容层关不掉，必须走原生接口；DeepSeek 等标准 OpenAI 兼容服务保持 0。
 LLM_NATIVE_OLLAMA = os.getenv("LLM_NATIVE_OLLAMA", "0") == "1"
+# Ollama 原生路径的上下文窗口：提示词超过该窗口会被服务端静默截断（曾导致空回复），
+# 客户端在估算用量接近上限时显式告警。换模型时按模型实际窗口调整。
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
 REPORTS_DIR = BASE_DIR / "reports"

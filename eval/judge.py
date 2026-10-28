@@ -1,4 +1,7 @@
-"""LLM-as-judge：对研究报告做三维评分（忠实度 / 覆盖度 / 引用质量）+ 引用硬校验。
+"""LLM-as-judge：对研究报告做三维评分（忠实度 / 覆盖度 / 引用质量）+ 必覆盖要点覆盖率 + 引用硬校验。
+
+覆盖度评分会带上评测集的 must_cover 清单（此前该字段只存在于数据里、从未参与评分），
+并把"未覆盖要点"换算成 must_cover_coverage（0~1）——把主观打分降级为可逐条核对的比对。
 
 说明：judge 与研究共用 config.LLM_MODEL。小模型当 judge 有系统性偏差，
 分数主要用于 A/B 相对对比；对外报告的绝对分数建议用更强模型复评。
@@ -25,11 +28,14 @@ COVERAGE_PROMPT = """你是评审员。
 规划出的子问题：
 {subquestions}
 
+本题的必覆盖要点清单（逐条判断报告是否讲到）：
+{must_cover}
+
 研究报告正文：
 {report}
 
-请评估：报告是否完整覆盖了所有子问题与任务书要求的维度，有无明显遗漏或偏题。
-以 JSON 输出：{{"score": 整数1~5, "missing": ["遗漏的维度或问题", ...]}}
+请评估：报告是否完整覆盖了所有子问题、任务书要求的维度以及上面的必覆盖要点，有无明显遗漏或偏题。
+以 JSON 输出：{{"score": 整数1~5, "missing": ["遗漏的维度或问题", ...], "uncovered_points": ["未覆盖的必覆盖要点，原样照抄清单里的文字"]}}
 评分标准：5=全部覆盖且论述充分；3=覆盖大部分但有明显薄弱项；1=遗漏多个子问题。"""
 
 CITATION_PROMPT = """你是引用规范评审员。
@@ -71,6 +77,28 @@ def citation_checks(report: str, n_refs: int) -> dict:
     }
 
 
+def _normalize_point(text: str) -> str:
+    return re.sub(r"[\s，。；、,.;：:（）()/]+", "", str(text)).lower()
+
+
+def match_uncovered(points: list[str], reported: list[str]) -> list[str]:
+    """把 judge 自报的 uncovered_points 与必覆盖清单对齐（双向包含即认为命中）。
+
+    judge 可能会改写措辞，所以不做严格字符串相等；对齐后再算 must_cover_coverage，
+    避免"清单里有 3 条、judge 只报了 1 条"时把覆盖率算成 1.0。
+    """
+    reported_norm = [_normalize_point(r) for r in reported if str(r).strip()]
+    missed = []
+    for point in points:
+        norm = _normalize_point(point)
+        if not norm:
+            continue
+        hit = any(norm in r or r in norm for r in reported_norm)
+        if hit:
+            missed.append(point)
+    return missed
+
+
 def _score(data: dict) -> int:
     try:
         return max(1, min(5, int(data.get("score", 3))))
@@ -79,9 +107,16 @@ def _score(data: dict) -> int:
 
 
 def judge_report(
-    question: str, brief: str, subquestions: list[str], report: str, notes: list[dict], n_refs: int
+    question: str,
+    brief: str,
+    subquestions: list[str],
+    report: str,
+    notes: list[dict],
+    n_refs: int,
+    must_cover: list[str] | None = None,
 ) -> dict:
     body = report.split("## 参考来源")[0]
+    must_cover = [str(x).strip() for x in (must_cover or []) if str(x).strip()]
     notes_text = "\n\n".join(
         f"### 子问题：{n.get('subquestion', '')}\n{n.get('content', '')}" for n in notes if n.get("content")
     ) or "（无笔记）"
@@ -107,6 +142,7 @@ def judge_report(
                 "content": COVERAGE_PROMPT.format(
                     brief=brief,
                     subquestions="\n".join(f"- {s}" for s in subquestions),
+                    must_cover="\n".join(f"- {x}" for x in must_cover) or "（本题未定义必覆盖要点）",
                     report=body,
                 ),
             }],
@@ -114,8 +150,16 @@ def judge_report(
         )
         result["coverage"] = _score(data)
         result["missing"] = data.get("missing", [])[:5]
+        if must_cover:
+            missed = match_uncovered(must_cover, data.get("uncovered_points", []) or [])
+            result["must_cover_total"] = len(must_cover)
+            result["must_cover_miss"] = len(missed)
+            result["uncovered_points"] = missed
+            result["must_cover_coverage"] = round(1 - len(missed) / len(must_cover), 3)
     except Exception as exc:
         result["coverage"] = None
+        if must_cover:
+            result["must_cover_coverage"] = None
         result["judge_error"] = result.get("judge_error", "") + f" coverage: {exc}"
 
     try:

@@ -18,12 +18,14 @@ from pathlib import Path
 import config
 import markdown as md_lib
 import observability
-from fastapi import FastAPI, Query, Request
+import reliability
+from budget import BUDGET
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
 
-from graph.build import build_research_app, make_checkpointer
+from graph.build import build_research_app, make_checkpointer, thread_config
 from llm.client import USAGE
 
 app = FastAPI(title="Deep Research Agent")
@@ -35,8 +37,10 @@ NODE_LABELS = {
     "coordinator": "🎯 协调员",
     "planner": "📋 规划师",
     "researcher": "🔍 研究员",
+    "compactor": "🗜️ 压缩",
     "verifier": "⚖️ 核查员",
     "writer": "✍️ 撰写人",
+    "archivist": "🗄️ 归档",
 }
 
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
@@ -62,12 +66,19 @@ def _describe(node: str, out) -> list[dict]:
             ev["brief"] = item.get("brief", "")
         elif node == "planner":
             ev["subquestions"] = item.get("subquestions", [])
+            ev["replan_count"] = item.get("replan_count", 0)
+            ev["memory_reused"] = item.get("memory_reused", [])
         elif node == "researcher":
             note = (item.get("notes") or [{}])[0]
             ev["subquestion"] = note.get("subquestion", "")
             ev["n_sources"] = len(note.get("sources", []))
+        elif node == "compactor":
+            ev["compaction"] = item.get("compaction", {})
         elif node == "verifier":
             ev["conflicts"] = item.get("conflicts", [])
+            ev["gaps"] = item.get("gaps", [])
+        elif node == "archivist":
+            ev["memory_written"] = item.get("memory_written", 0)
         events.append(ev)
     return events
 
@@ -91,6 +102,13 @@ def _report_event(state: dict, elapsed: float) -> str:
             "output_tokens": usage["output_tokens"],
             "cost_usd_est": round(cost, 4),
             "elapsed_s": round(elapsed, 1),
+            "budget_exceeded": state.get("budget_exceeded", ""),
+            "remaining": BUDGET.remaining(),
+            "compaction": state.get("compaction", {}),
+            "degradations": reliability.degradations(),
+            "memory_reused": len(state.get("memory_reused") or []),
+            "memory_written": state.get("memory_written", 0),
+            "memory_enabled": config.MEMORY_ENABLED,
         },
     })
 
@@ -105,14 +123,17 @@ def _stream(payload, cfg: dict, started: float):
             for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
                 if "__interrupt__" in update:
                     intr = update["__interrupt__"][0]
+                    value = intr.value or {}
                     yield sse({
                         "type": "interrupt",
                         "thread_id": cfg["configurable"]["thread_id"],
-                        "brief": (intr.value or {}).get("brief", ""),
+                        "kind": value.get("kind", "brief"),
+                        "title": value.get("title", ""),
+                        "content": value.get("content", ""),
                     })
                     return
                 for node, out in update.items():
-                    if node == "review_brief":
+                    if node in ("review_brief", "review_plan"):
                         continue  # 审核由 interrupt 事件负责
                     for ev in _describe(node, out):
                         ev.update({
@@ -136,6 +157,12 @@ def index(request: Request):
             "model": config.LLM_MODEL,
             "provider": config.SEARCH_PROVIDER,
             "langfuse": observability.is_enabled(),
+            "review_points": config.REVIEW_POINTS,
+            "max_sub_default": config.MAX_SUBQUESTIONS,
+            "max_sub_limit": config.MAX_SUBQUESTIONS_LIMIT,
+            "rounds_default": config.MAX_SEARCH_ROUNDS,
+            "rounds_limit": config.MAX_SEARCH_ROUNDS_LIMIT,
+            "max_llm_calls": config.MAX_LLM_CALLS,
         },
     )
 
@@ -143,18 +170,33 @@ def index(request: Request):
 @app.get("/api/research/stream")
 def research_stream(
     topic: str = Query(..., min_length=2),
-    review: bool = False,
-    max_sub: int | None = None,
-    rounds: int | None = None,
+    points: str | None = Query(None, description="审核点位，逗号分隔：brief,plan；空串=不审核"),
+    max_sub: int | None = Query(None, description="子问题数量上限"),
+    rounds: int | None = Query(None, description="每个子问题最大检索轮数"),
 ):
-    if max_sub:
-        config.MAX_SUBQUESTIONS = max_sub
-    if rounds:
-        config.MAX_SEARCH_ROUNDS = rounds
+    # 越界参数直接 400，而不是静默降级成空报告（rounds<=0 会让 researcher 一次都不检索）
+    try:
+        eff_sub, eff_rounds = config.validate_scale(max_sub, rounds)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # points 缺省时跟随 .env 的 REVIEW_POINTS；显式传空串即全自动
+    review_points = (
+        list(config.REVIEW_POINTS) if points is None
+        else [p.strip() for p in points.split(",") if p.strip()]
+    )
     tid = f"web-{datetime.now():%Y%m%d-%H%M%S}"
-    cfg = {"configurable": {"thread_id": tid}}
-    payload = {"topic": topic, "notes": [], "require_review": review}
+    cfg = thread_config(tid)
+    # 规模覆盖走 state，不改全局 config —— 否则同进程内并发请求会互相覆盖
+    payload = {
+        "topic": topic,
+        "notes": [],
+        "review_points": review_points,
+        "max_subquestions": eff_sub,
+        "max_search_rounds": eff_rounds,
+    }
     USAGE.reset()
+    BUDGET.reset()          # 预算/熔断按请求计（单用户本地工具假设，见模块说明）
+    reliability.reset_all()
     started = time.time()
 
     def gen():
@@ -166,9 +208,11 @@ def research_stream(
 
 @app.get("/api/resume/stream")
 def resume_stream(thread_id: str = Query(...), value: str = ""):
-    """human-in-the-loop：value 为空表示确认原任务书，非空表示替换。"""
-    cfg = {"configurable": {"thread_id": thread_id}}
+    """human-in-the-loop：value 为空表示确认原内容，非空表示整组替换（按当前中断的 kind 解释）。"""
+    cfg = thread_config(thread_id)
     payload = Command(resume=value or "")
+    BUDGET.reset()          # 续跑重新起算预算（与 CLI 的 --resume 行为一致）
+    reliability.reset_all()
     started = time.time()
 
     def gen():

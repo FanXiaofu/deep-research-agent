@@ -2,10 +2,17 @@
 
 引用编号在代码里确定性生成（按来源首次出现顺序去重编号），
 模型只负责用 [n] 标注，"参考来源"章节由代码自动附加 —— 避免模型编造编号。
+
+W5 加固：
+- 消费侧统一走 effective_notes()（压缩生效时用压缩视图，否则用原文）；
+- conflicts 跨轮累积后在这里去重展示；
+- 预算超限时如实附加"研究受限说明"（不掩盖降级，评测才能度量到）；
+- 模型不可用时用笔记做确定性兜底，保证长流程最终一定产出报告。
 """
 import config
-from graph.state import ResearchState
-from llm.client import chat
+import reliability
+from graph.state import ResearchState, effective_notes
+from llm.client import chat_safe
 
 
 def _build_registry(notes: list[dict]) -> tuple[dict[str, int], list[dict]]:
@@ -53,17 +60,69 @@ def _strip_preamble(text: str) -> str:
     return text.strip()
 
 
+def _fallback_report(state: ResearchState, notes: list[dict]) -> str:
+    """撰写模型不可用时的确定性兜底：直接汇总笔记要点，保证流程仍产出可用报告。"""
+    parts = [f"# {state['topic']}", "", "> 撰写模型本轮不可用，以下为各子问题检索笔记的原始汇总（未经模型改写）。", ""]
+    for n in notes:
+        parts += [f"## {n['subquestion']}", "", n.get("content", "").strip(), ""]
+    return "\n".join(parts).strip()
+
+
+def _limitation_section(state: ResearchState) -> str:
+    """降级如实披露：预算受限/依赖降级都要写进报告，不能对外表现为"正常完成"。"""
+    reason = state.get("budget_exceeded") or ""
+    events = reliability.degradations()
+    if not reason and not events:
+        return ""
+    lines = ["", "## 研究受限说明", ""]
+    if reason:
+        lines.append(f"- 本轮研究触发全局预算上限（{reason}），已停止新增检索分支，结论覆盖可能不完整。")
+    for ev in events[:10]:
+        lines.append(f"- 依赖降级：{ev['component']} — {ev['reason']}")
+    return "\n".join(lines)
+
+
+def _memory_section(state: ResearchState) -> str:
+    """复用历史研究时如实标注来源与时间：读者有权知道哪一段不是本轮检索得来的。"""
+    hits = state.get("memory_reused") or []
+    if not hits:
+        return ""
+    lines = [
+        "",
+        "## 复用历史研究说明",
+        "",
+        "以下子问题直接复用了研究档案中的历史笔记（本轮未重新检索）：",
+        "",
+    ]
+    for hit in hits:
+        same = hit.get("note_subquestion") == hit.get("subquestion")
+        origin = "" if same else f"（记忆原文：{hit.get('note_subquestion')}）"
+        lines.append(
+            f"- {hit.get('subquestion')}{origin} ｜ 相似度 {hit.get('similarity')} ｜ "
+            f"记忆时间 {hit.get('updated_at')}（约 {hit.get('age_days')} 天前）｜ "
+            f"来源 {hit.get('sources')} 条"
+        )
+    lines.append("")
+    lines.append("> 记忆有寿命（超过 MEMORY_MAX_AGE_DAYS 天不再复用），但复用段落仍可能滞后于最新资料。")
+    return "\n".join(lines)
+
+
 def writer(state: ResearchState) -> dict:
-    notes = [n for n in state.get("notes", []) if n.get("content")]
+    notes = [n for n in effective_notes(state) if n.get("content")]
+    limitation = _limitation_section(state)
+    memory_note = _memory_section(state)
     if not notes:
-        return {"report": f"# {state['topic']}\n\n> 未能收集到有效研究资料，请检查搜索服务与网络后重试。"}
+        # 没有可用笔记：如实说明是"检索无结果"还是"预算受限"，不假装研究完成
+        body = f"# {state['topic']}\n\n> 未能收集到有效研究资料，请检查搜索服务与网络后重试。"
+        tail = "\n".join(x for x in (limitation, memory_note) if x)
+        return {"report": f"{body}\n{tail}\n" if tail else body}
 
     registry, ordered = _build_registry(notes)
     notes_text = "\n\n".join(f"### 子问题：{n['subquestion']}\n{n['content']}" for n in notes)
     sources_text = "\n".join(
         f"[{registry[s['url']]}] {s['title']} - {s['url']}" for s in ordered
     )
-    conflicts = state.get("conflicts") or []
+    conflicts = list(dict.fromkeys(state.get("conflicts") or []))  # 跨轮累积，展示前去重
     conflicts_section = (
         "事实核查员标记的冲突（报告需单列一节说明）：\n" + "\n".join(f"- {c}" for c in conflicts)
         if conflicts
@@ -72,7 +131,7 @@ def writer(state: ResearchState) -> dict:
     strict_rules = STRICT_GROUNDING_RULES if config.WRITER_STRICT_GROUNDING else ""
 
     report = _strip_preamble(
-        chat(
+        chat_safe(
             [{
                 "role": "user",
                 "content": PROMPT.format(
@@ -84,9 +143,17 @@ def writer(state: ResearchState) -> dict:
                     strict_rules=strict_rules,
                 ),
             }],
+            fallback="",
+            what="报告撰写",
             temperature=0.4,
         )
     )
+    if not report:
+        report = _fallback_report(state, notes)
+
+    tail = "\n".join(x for x in (limitation, memory_note) if x)
+    if tail:
+        report = f"{report}\n{tail}\n"
 
     references = "\n".join(
         f"{registry[s['url']]}. [{s['title']}]({s['url']})" for s in ordered

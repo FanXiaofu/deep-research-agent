@@ -5,6 +5,7 @@ Langfuse 配置了 key 时自动换成 langfuse.openai 的追踪版客户端，
 """
 import json
 import re
+import sys
 import threading
 
 import httpx
@@ -12,6 +13,7 @@ import observability
 from openai import OpenAI
 
 import config
+import reliability
 
 _client: OpenAI | None = None
 
@@ -104,6 +106,38 @@ def chat_json(messages: list[dict], **kwargs) -> dict:
     return parse_json(chat(messages, json_mode=True, **kwargs))
 
 
+def chat_safe(messages: list[dict], *, fallback: str = "", what: str = "LLM 调用", **kwargs) -> str:
+    """失败不抛异常的 chat：客户端自身已重试 3 次，仍失败则记录降级事件并返回 fallback。
+
+    长流程里单个节点把异常抛出去会毁掉整轮研究（checkpoint 之后虽然能续跑，
+    但已花掉的检索成本要重来），因此节点侧统一用这个包装做优雅降级。
+    """
+    try:
+        return chat(messages, **kwargs)
+    except Exception as exc:  # noqa: BLE001 - 降级是显式设计
+        reliability.record_degradation("llm", f"{what}失败（{type(exc).__name__}: {exc}）")
+        return fallback
+
+
+def chat_json_safe(messages: list[dict], *, fallback: dict | None = None, what: str = "LLM 调用", **kwargs) -> dict:
+    """chat_safe 的 JSON 版本：调用失败或解析失败都返回 fallback。"""
+    try:
+        return chat_json(messages, **kwargs)
+    except Exception as exc:  # noqa: BLE001 - 降级是显式设计
+        reliability.record_degradation("llm", f"{what}失败（{type(exc).__name__}: {exc}）")
+        return fallback if fallback is not None else {}
+
+
+def estimate_tokens(text: str) -> int:
+    """粗估 token 数：CJK 约 1 字 1 token，ASCII 约 4 字符 1 token。
+
+    只用于"提示词是否逼近上下文窗口"的对账告警，不追求精确。
+    """
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff" or "\u3000" <= ch <= "\u303f")
+    other = len(text) - cjk
+    return cjk + other // 4
+
+
 _NATIVE_SYSTEM = (
     "你是生产系统中的一个处理组件。直接输出最终结果本身，"
     "禁止输出思考过程、推理步骤、自我对话或对任务要求的复述。"
@@ -114,13 +148,23 @@ def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: 
     """Ollama 原生 /api/chat：唯一能真正关掉 qwen3 思考通道的路径（think=false）。
 
     think=false 时 qwen3 仍可能把推理写进正文，因此叠加系统提示与 /no_think 软开关双保险，
-    并把 num_ctx 提到 8192，避免长研究提示词在默认 4096 下被静默截断。
+    并把 num_ctx 提到可配置的窗口（config.OLLAMA_NUM_CTX，默认 8192），避免长研究提示词在默认 4096 下被静默截断。
+    提示词估算接近窗口上限时打告警：静默截断会表现为"模型答非所问/空回复"，
+    这类问题必须能在日志里对账（token 与延迟对不上账的老问题）。
     注意：此路径不经过 langfuse.openai 自动埋点（trace 仍由 @observe 生成，无 token 明细）。
     """
     base = config.LLM_BASE_URL.removesuffix("/v1").rstrip("/")
     msgs = [{"role": m["role"], "content": m["content"]} for m in messages]
     if not any(m["role"] == "system" for m in msgs):
         msgs.insert(0, {"role": "system", "content": _NATIVE_SYSTEM})
+    prompt_tokens = sum(estimate_tokens(m["content"]) for m in msgs)
+    if prompt_tokens > config.OLLAMA_NUM_CTX * 0.8:
+        print(
+            f"[warn] 提示词约 {prompt_tokens} tokens，逼近 num_ctx={config.OLLAMA_NUM_CTX} 上限，"
+            f"超出部分会被服务端静默截断（调大 OLLAMA_NUM_CTX 或缩小进入提示词的正文/笔记）",
+            file=sys.stderr,
+        )
+        reliability.record_degradation("ollama_ctx", f"提示词约 {prompt_tokens} tokens 逼近 num_ctx={config.OLLAMA_NUM_CTX}")
     body = {
         "model": config.LLM_MODEL,
         "messages": msgs,
@@ -128,7 +172,7 @@ def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: 
         "think": False,
         "options": {
             "temperature": config.LLM_TEMPERATURE if temperature is None else temperature,
-            "num_ctx": 8192,
+            "num_ctx": config.OLLAMA_NUM_CTX,
         },
     }
     if json_mode:

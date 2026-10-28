@@ -32,23 +32,36 @@ topic
 coordinator ── 生成研究任务书（brief）
   │
   ▼
-review_brief ─ human-in-the-loop：interrupt 暂停，人工审核/改写任务书（--no-review 跳过）
+review_brief ─ human-in-the-loop①：审核/改写任务书（REVIEW_POINTS 含 brief 时中断）
   │
   ▼
 planner ────── 拆解为 3~5 个子问题（JSON 输出）
+  │            ├─ 预算检查：超限则直接收敛
+  │            └─ 查研究档案：命中的子问题直接复用历史笔记（不再检索）
   │
-  ├─ Send API 并行 fan-out ────────────────┐
+  ▼
+review_plan ── human-in-the-loop②：审核子问题（"花钱前"最后一道关；仅首次规划，重规划不中断）
+  │
+  ├─ Send API 并行 fan-out（只派发未命中的子问题）──┐
   ▼                    ▼                   ▼
 researcher₁         researcher₂        researcherₙ   ← 上下文完全隔离
-（搜索→抓取→摘要→反思循环，各分支只回传一条精炼笔记，notes 经 reducer 归并）
+（搜索→抓取→摘要→反思循环，搜索走重试+熔断降级，各分支只回传一条精炼笔记，notes 经 reducer 归并）
   │
   ▼
-verifier ───── 交叉比对，标记来源冲突
+compactor ──── 笔记正文超阈值时压缩（来源列表不变，引用编号不受影响）
   │
   ▼
-writer ────── 汇总为 Markdown 报告（引用编号由代码确定性生成，防编造）
+verifier ───── 交叉比对：标记来源冲突 + 标记尚未回答的缺口
+  │
+  ├─ 有缺口/冲突且未超重规划上限 ──► 回到 planner（只对新增子问题并行检索）
+  ▼
+writer ────── 汇总为 Markdown 报告（引用编号由代码确定性生成，防编造；降级/复用历史研究都如实标注）
+  │
+  ▼
+archivist ─── 笔记落档到研究档案（长期记忆，下次同题研究可直接复用）
 
 全图挂 SqliteSaver checkpoint：每步落盘，崩溃/中断后 --resume 精确续跑
+全局预算闸门：LLM 调用数 / token / 成本 / 墙钟任一超限即停止新增分支并收敛出报告
 Langfuse（可选）：每个节点、每次 LLM 调用的 span 自动上报，token 用量可查
 ```
 
@@ -66,6 +79,7 @@ Python 3.11 · LangGraph（状态机编排）· DeepSeek（OpenAI 兼容接口�
 - **`research.bat "你的研究问题"`** — 命令行跑一次研究，报告存到 `reports/`。
   - `research.bat "问题" --max-sub 4 --rounds 2`　指定子问题数与检索轮数
   - `research.bat "问题" --no-review`　跳过人工审核，全自动
+  - `research.bat "问题" --memory on`　开启研究档案：命中的子问题直接复用历史笔记（同题第二次研究省掉检索）
   - `research.bat --resume`　崩溃/中断后从断点续跑
 
 ### 手动方式
@@ -83,7 +97,7 @@ E:\AIProject\environment\deep-research-agent-venv\Scripts\Activate.ps1
 python cli.py "LangGraph 和 CrewAI 有什么区别，各适合什么场景" --max-sub 3
 
 # 常用变体
-python cli.py "研究问题" --no-review          # 跳过人工审核，全自动
+python cli.py "研究问题" --no-review          # 跳过全部人工审核（点位由 REVIEW_POINTS 控制）
 python cli.py --resume                       # 崩溃/中断后从断点续跑（自动读上次 thread）
 python cli.py --resume r-20260912-033100     # 续跑指定 thread
 ```
@@ -98,7 +112,8 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 - 实时时间线展示每个 Agent 的动作（协调员→规划师→并行研究员→核查员→撰写人），含耗时
-- 勾选"研究前人工审核"时，任务书生成后会暂停，可在网页上确认或改写后继续（interrupt → resume）
+- 子问题上限 / 检索轮数可自由填写（不再是固定下拉），旁边实时提示"预计 ≈ N 次 LLM 调用"与是否超预算
+- 勾选"审核任务书"/"审核子问题"时，对应节点后暂停，可在网页上确认或整组改写后继续（interrupt → resume）
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
 
 ## Docker 部署
@@ -144,9 +159,60 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 |---|---|
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | 任意 OpenAI 兼容服务；本地 Ollama 示例见 `.env.example` |
 | `SEARCH_PROVIDER` | `tavily`（推荐）或 `duckduckgo`（免费兜底） |
-| `MAX_SUBQUESTIONS` | 子问题上限，直接控制成本 |
-| `MAX_SEARCH_ROUNDS` | 每个子问题反思循环的最大轮数 |
+| `MAX_SUBQUESTIONS` | 子问题上限，直接控制成本（可在 CLI/Web/评测按次覆盖，范围见 `MAX_SUBQUESTIONS_LIMIT`） |
+| `MAX_SEARCH_ROUNDS` | 每个子问题反思循环的最大轮数（同样可按次覆盖，范围见 `MAX_SEARCH_ROUNDS_LIMIT`） |
+| `MAX_SUBQUESTIONS_LIMIT` / `MAX_SEARCH_ROUNDS_LIMIT` | 按次覆盖的合法上限（默认 8 / 5）；越界在入口直接报错（CLI 退出、Web 400），不静默降级 |
+| `MAX_LLM_CALLS` / `MAX_TOTAL_TOKENS` / `MAX_WALL_CLOCK_S` / `MAX_BUDGET_USD` | 全局预算：任一超限即停止新增分支、把已有笔记收敛成报告，并在报告里标注受限原因 |
+| `MAX_REPLAN_ROUNDS` / `MAX_FOLLOWUP_SUBQUESTIONS` | 重规划轮数上限与每轮新增子问题数上限 |
+| `REVIEW_POINTS` / `PLAN_REVIEW_MIN_SUBQUESTIONS` | 人工审核点位：`brief`（任务书）/ `plan`（子问题），逗号分隔，空=全自动；plan 点位仅首次规划生效，子问题数低于阈值时不暂停 |
+| `COMPACTION_ENABLED` / `COMPACT_TRIGGER_CHARS` / `COMPACT_TARGET_CHARS` | 笔记压缩开关、触发阈值、压缩后总字数目标 |
+| `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
+| `MEMORY_ENABLED` / `MEMORY_DB` | 研究档案（长期记忆）开关与库文件；**默认关闭**，开启后命中记忆的子问题不再检索 |
+| `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
+| `OLLAMA_NUM_CTX` | Ollama 原生路径的上下文窗口；提示词逼近上限时在 stderr 告警（避免静默截断） |
 | `LANGFUSE_PUBLIC_KEY/SECRET_KEY` | 都配置才启用追踪，留空自动降级关闭 |
+
+## 记忆分层（W6）
+
+三层的职责与边界分得很清，面试里最容易被追问的正是这里：
+
+| 层 | 实现 | 解决的问题 | 不解决什么 |
+|---|---|---|---|
+| 工作记忆 | `graph/state.py` 的 `ResearchState` + `notes`；`compactor` 节点做压缩 | 并行分支的中间产物归并、长流程上下文不爆 | 不做跨会话记忆 |
+| 会话记忆 | `SqliteSaver` checkpoint（thread_id + `--resume`） | 进程被杀后精确恢复，已完成分支不重复花钱 | **checkpoint ≠ memory**：它是状态持久化，不改变未来决策 |
+| 长期记忆 | `memory.py` 研究档案 + `archivist` 节点 + `planner` 复用 | 跨运行复用历史笔记：同题/近似题第二次研究直接省掉检索 | 不替代本轮核验（复用仍经 verifier 与 writer，报告标注来源与日期） |
+
+研究档案的设计取舍（细节见 `memory.py` 顶部注释）：
+
+- **相似度用字符 bigram Jaccard，不引依赖**；阈值是量出来的：同一句 1.00 / 近似重复 0.87 / 子集 0.73 / 同义改写 0.39 / 同题不同维度 0.44 / 无关 0.00。
+- 注意 **0.39 < 0.44**：该复用与绝不该复用的情况在 0.4 附近重叠，阈值定在重叠区之上（0.62），明确选择**宁可漏复用，不可误复用**（误复用 = 拿 A 维度旧结论回答 B 维度；漏复用 = 多搜一次）。要覆盖同义改写需要语义匹配，当前刻意不做。
+- **记忆有寿命**：超过 `MEMORY_MAX_AGE_DAYS` 不再复用；且只有"重新检索"才刷新时间 —— 反复复用不会让旧结论变成永久记忆（遗忘策略）。
+- **回放可见**：报告里附「复用历史研究说明」节，列出复用子问题、相似度、记忆时间；CLI/前端也有对应提示与统计卡。
+
+```bash
+# 有记忆的 A/B：先重置 → 第一轮落档 → 第二轮复用
+python eval/run_eval.py --tag mem1 --limit 8 --memory on --reset-memory   # 起点为空，行为同无记忆
+python eval/run_eval.py --tag mem2 --limit 8 --memory on                  # 第二轮命中记忆
+python eval/run_eval.py --compare mem1 mem2                              # 看 token/耗时下降与质量是否守住
+```
+
+## 长流程控制（W5）
+
+长流程的失败模式不是"某一步报错"，而是"跑到一半没预算了 / 依赖挂了 / 上下文塞爆了却没人知道"。四类控制都做成可配置 + 可审计：
+
+| 控制 | 机制 | 可观测 |
+|---|---|---|
+| 全局预算 | planner / researcher 在开新分支前查预算（LLM 调用数 / token / 成本 / 墙钟），超限即写入 `budget_exceeded` 并收敛到 writer | CLI 与前端显示剩余额度；报告附"研究受限说明"节；评测逐题记录 |
+| 依赖熔断 | 搜索重试 `SEARCH_RETRIES` 次；连续失败达阈值后熔断 `BREAKER_COOLDOWN_S` 秒（closed → open → half-open 探活），抓取同样按结果成功率熔断 | 每次降级写入降级日志（组件 + 原因），CLI/前端/评测状态文件都能看到；不再"悄悄跳过" |
+| 运行时压缩 | 笔记正文超 `COMPACT_TRIGGER_CHARS` 时，compactor 节点先压缩再交给核查/撰写；**来源列表原样保留**，所以引用编号注册表不受影响；LLM 不可用时按目标字数确定性截断兜底 | 状态里记录压缩前后字数与倍数；前端时间线出现"压缩"节点 |
+| 动态重规划 | verifier 除冲突外还报告"尚未回答的缺口"；有缺口/冲突且未超 `MAX_REPLAN_ROUNDS` 时回到 planner，**只对新增子问题**做 fan-out（已完成分支不重跑） | CLI 打印"第 N 轮重规划，新增 M 个子问题"；评测记录 `replan_count` |
+| 长期记忆 | planner 查研究档案，命中的子问题直接复用历史笔记（不开检索分支）；archivist 在报告后落档；记忆有寿命、只复用笔记不复用报告 | CLI/前端显示"复用历史研究 N 条"；报告的「复用历史研究说明」节；评测记录 `memory_reused` |
+
+配套的工程化改动：节点级 `retry_policy`、`GRAPH_RECURSION_LIMIT`（防循环失控）、`chat_safe`/`chat_json_safe` 降级包装（单节点失败不再毁掉整轮研究，writer 在模型不可用时用笔记兜底出报告）。
+
+```bash
+python -m pytest tests -q     # 74 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模校验、writer 降级
+```
 
 ## 里程碑
 
@@ -159,6 +225,16 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 - [x] **W4 交付上线**：FastAPI + SSE 流式界面（网页端 human-in-the-loop 审核）、Dockerfile + docker-compose（app + Langfuse 自托管，容器内实测跑通）、技术博客 [docs/blog.md](docs/blog.md)
   - 实测：Web 端一次完整研究 67s（并行 + think:false）；容器内 44.7s
   - 待补：README 演示 GIF（可用 ScreenToGif 录制研究过程后替换本行）
+- [x] **W5 长流程控制**：全局预算闸门（4 维度）+ 依赖熔断与降级留痕 + 运行时笔记压缩 + verifier→planner 动态重规划回边 + 节点级重试 + 28 个单元测试
+  - 端到端实测（桩 LLM/搜索，覆盖真实 LangGraph 拓扑）：正常+重规划路径（3 条笔记 / 参考来源 6 条 / 冲突展示去重）、预算超限收敛（不再开分支、报告标注受限原因）、压缩 1600→428 字（来源零丢失、引用编号仍连续）、搜索全挂时分支不炸且仍产出报告
+  - 评测口径补充：`must_cover` 清单接入覆盖度评分（此前该字段存在于数据集却从未参与评分），新增 `must_cover_coverage` 指标与逐题降级/预算/压缩标记
+- [x] **W6 记忆分层**：研究档案（长期记忆）+ archivist 落档节点 + planner 记忆复用 + 报告「复用历史研究说明」+ 记忆寿命与命中统计 + 26 个记忆相关用例（合计 54）
+  - 阈值不是拍脑袋：实测同一句 1.00 / 近似重复 0.87 / 子集 0.73 / 同义改写 0.39 / 同题不同维度 0.44，**两类在 0.4 附近重叠**，因此阈值定在 0.62 并明确取舍"宁可漏复用，不可误复用"（取舍已固化为测试）
+  - 图级验证：命中记忆时检索分支完全不发起（用一个"被调用就抛异常"的假 provider 证明）、来源列表随记忆完整复用、复用笔记同样受压缩管辖、未命中时行为与开启前一致
+- [x] **W7 规划审核点**：human-in-the-loop 泛化为 `REVIEW_POINTS`（`brief` / `plan`），在 planner 拆解之后、fan-out 之前增加第二个中断点（"花钱前"的关）；重规划不再中断，`PLAN_REVIEW_MIN_SUBQUESTIONS` 支持按规模条件触发；中断协议统一为 `{kind, title, content}`，CLI 与 Web 共用一套渲染（合计 60）
+  - 取舍：任务书只是原始问题的改写、出错概率低；子问题的拆解才是成本决策点（N 个子问题 = N 条并行检索分支），因此在付费前拦截回报最高，同时闸门化避免小任务被无谓打断
+- [x] **W8 规模可自定义**：子问题上限 / 检索轮数从固定下拉改为自由填写；入口统一校验（`config.validate_scale`，CLI 报错退出 / Web 400）+ 范围上限（`MAX_SUBQUESTIONS_LIMIT` / `MAX_SEARCH_ROUNDS_LIMIT`）；per-run 覆盖改走 state（`effective_max_subquestions` / `effective_max_search_rounds`）而非改全局 config，修掉同进程并发请求互相覆盖的隐患；前端实时提示"预计 ≈ N 次 LLM 调用"及超预算预警（合计 74）
+  - 踩坑：`rounds <= 0` 会让 `researcher` 的 `range()` 一次都不跑 → 直接产出空笔记 + 空报告**且不报错**；`max_sub = 0` 又会被 `if max_sub:` 当 falsy 静默忽略。两者都在入口被显式拦下，并固化为测试
 
 ## 评测体系（W3）
 
@@ -168,9 +244,11 @@ python eval/run_eval.py --tag tuned     --limit 8 --max-sub 2 --rounds 1   # 调
 python eval/run_eval.py --compare baseline tuned                           # 生成 results/comparison.md
 ```
 
-- 评测集：`eval/golden_questions.jsonl`（20 题，覆盖概念解释/技术对比/工具选型/技术趋势）
-- 评分维度：忠实度（论断能否在笔记中找到依据）、覆盖度（子问题覆盖）、引用质量（LLM judge 1~5）+ 引用有效性/来源利用率（确定性校验 0~1）+ token 用量与成本估算
-- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`），换配置即换实验组，两批次同模型同题同参数，对比可复现
+- 评测集：`eval/golden_questions.jsonl`（20 题，覆盖概念解释/技术对比/工具选型/技术趋势，每题带 `must_cover` 必覆盖要点）
+- 评分维度：忠实度（论断能否在笔记中找到依据）、覆盖度（子问题 + 必覆盖要点）、引用质量（LLM judge 1~5）+ 必覆盖要点覆盖率 / 引用有效性 / 来源利用率（0~1）+ token 用量与成本估算
+- 忠实度的对照物与 writer 实际看到的证据一致（压缩生效时用压缩后的笔记视图，避免"报告 vs 未压缩原文"系统性偏松）
+- 逐题记录预算是否超限、是否压缩、重规划轮数、降级次数：**降级过的题不应与正常题混在一起看均值**
+- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`，以及 W5 的预算/压缩/重规划参数），换配置即换实验组，两批次同模型同题同参数，对比可复现
 - `--recompute TAG`：确定性校验规则修正后重算历史批次，无需重跑研究
 - ⚠️ 评测工具本身也要被验证：早期版本的引用正则只匹配单个 `[n]`，把 `[2, 6, 12]` 复合引用判为"无引用"，导致 tuned 被低估（0.90 → 修正后 1.00）。**指标口径错误会直接误导调优方向**，确定性指标尤其要用边界用例自测
 - 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用更强模型（如 DeepSeek-V3）复评全量 20 题
