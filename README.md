@@ -1,5 +1,7 @@
 # deep-research-agent
 
+[![ci](https://github.com/FanXiaofu/deep-research-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/FanXiaofu/deep-research-agent/actions/workflows/ci.yml)
+
 多 Agent 深度研究助手：输入一个研究问题，Agent 团队自动完成 **澄清 → 规划 → 并行检索 → 交叉验证 → 撰写报告**，输出带引用编号的 Markdown 研究报告。
 
 对标 OpenAI Deep Research / 字节 DeerFlow 的开源复刻，差异化点：**自建评测体系 + token 成本控制 + 全链路可观测**。
@@ -91,6 +93,9 @@ source /e/AIProject/environment/deep-research-agent-venv/Scripts/activate
 # PowerShell 激活
 E:\AIProject\environment\deep-research-agent-venv\Scripts\Activate.ps1
 
+# 安装锁定依赖（与 CI / Docker 完全一致，避免版本漂移）
+python -m pip install -r requirements.lock
+
 # 1. 已默认配置：本地 Ollama(qwen3:4b) + Tavily，开箱即跑（需先启动 ollama serve）
 #    换 DeepSeek：编辑 .env 中注释的 DeepSeek 段并填 key
 # 2. 运行（默认会先弹出任务书供人工审核）
@@ -129,9 +134,16 @@ docker compose up -d
 # Langfuse  → http://localhost:3000（注册后把 key 填入 .env 重启生效）
 ```
 
-本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像构建约 436MB，容器内已实测跑通完整研究流程。
+本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像从 `requirements.lock` 安装，构建约 413MB，容器内 `/healthz` 已实测 200。
 
 > 公网部署前必须设置 `APP_AUTH_TOKEN`（足够长的随机值），并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
+
+## CI 与可复现构建（E1）
+
+- `requirements.lock`：77 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
+- `.github/workflows/ci.yml`：`test` job 从锁文件安装并跑 `pytest`；`docker` job 构建镜像。
+- `Dockerfile` 用 `requirements.lock` 安装，并内置 `/healthz` HEALTHCHECK。
+- 本地构建：`docker build -t deep-research-agent .`；国内网络可加 `--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`。
 
 ## 数据维护（C1）
 
@@ -289,6 +301,8 @@ python -m pytest tests -q     # 138 个用例：预算判定、LLM 超时/重试
   - 备份包含 WAL 中的数据；恢复前自动给目标库做安全备份，避免误覆盖无可回退
 - [x] **R3 预算硬中断**：单次 LLM timeout / 重试受剩余墙钟约束（`_request_timeout`），预算耗尽前不再发起调用；OpenAI 兼容与 Ollama 原生路径都逐次计算；测试 138 个
   - 目的：避免一次卡住的模型调用绕过 `MAX_WALL_CLOCK_S`，让"预算硬闸门"在途调用上也成立
+- [x] **E1 可复现构建**：`requirements.lock`（77 个锁定依赖）+ GitHub Actions（pytest + docker build）+ Dockerfile 改用锁文件并加 HEALTHCHECK
+  - 实测：镜像 413MB；容器内 `/healthz` 返回 200；`nh3/langgraph/fastapi` 导入正常
 
 ## 评测体系（W3）
 
