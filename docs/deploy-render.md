@@ -92,6 +92,8 @@ Render 注入 `PORT`（通常是 `10000`）。Dockerfile 使用：
 
 ### 休眠与数据库期限
 
+Render 免费层不支持 `maxShutdownDelaySeconds`，所以 Blueprint 不设置该字段；付费实例需要更长收尾时间时可在 Dashboard 或 Blueprint 中加回。
+
 Render 免费层：
 
 - Web Service 15 分钟无请求会休眠，下一次请求冷启动；

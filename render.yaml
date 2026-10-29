@@ -8,7 +8,6 @@ services:
     region: singapore
     healthCheckPath: /readyz
     autoDeployTrigger: commit
-    maxShutdownDelaySeconds: 150
     dockerfilePath: ./Dockerfile
     envVars:
       - key: LLM_BASE_URL
