@@ -8,7 +8,7 @@
 
 ## 1. 当前状态
 
-本地提交（相对 `origin/main` 领先 6 个）：
+本地提交（按时间顺序）：
 
 | 提交 | 内容 |
 |---|---|
@@ -18,12 +18,14 @@
 | `2afe08d` | D1：Bearer 认证、POST + token、XSS/SSRF、限流 |
 | `1851adc` | C1：SQLite WAL、schema 版本、checkpoint 清理、备份/恢复 |
 | `5505601` | R3：LLM 调用受剩余墙钟预算约束 |
+| `5bd630f` | 工程记录文档 |
+| `dd5ca26` | E1：requirements.lock + CI + Docker healthcheck |
 
 推送状态：
 
-- GitHub 网络已恢复，`git push` 能到达远端；
-- 本机 GCM 保存的 GitHub 凭据失效，返回 `Invalid username or token`；
-- 远端仍未更新；解决方式：`git credential-manager github login` 或改走 SSH key。
+- 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
+- 远端 `main` 已包含到 `5bd630f`，tag `v0.1.0-audit-baseline` 已推送；E1 与本文档更新随后补推；
+- 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
 
@@ -91,6 +93,21 @@
 - 遗留：已经发出的阻塞调用只能靠 timeout 收敛，不能从外部强行取消；多 worker 下墙钟仍是各自计算。
 - 提交：`5505601`。
 
+### E1 可复现构建
+
+- 目标：让 CI/Docker/本地安装使用同一套锁定依赖，并能实际构建、启动、通过健康检查。
+- 改动：
+  - `requirements.lock`：从测试通过的 venv 锁定 77 个包；`requirements.txt` 保留直接依赖；
+  - `.github/workflows/ci.yml`：`test` job（锁文件安装 + pytest）与 `docker` job（镜像构建）；
+  - `Dockerfile`：改用锁文件安装，`PIP_INDEX_URL` 改为构建参数，内置 `/healthz` HEALTHCHECK；
+  - README 增加 CI 章节、锁文件安装步骤与镜像实测尺寸。
+- 验证：
+  - `docker build` 成功，镜像 413MB；
+  - 容器内 `/healthz` 返回 200；`nh3 / langgraph / fastapi` 导入正常；
+  - CI YAML 解析出 `test`、`docker` 两个 job；`pytest` 仍为 138 passed。
+- 遗留：CI 尚未在 GitHub Actions 上实际跑过（配置推送后触发）；升级/回滚 runbook、非 root 容器、结构化日志/指标仍未做。
+- 提交：`dd5ca26`。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -99,13 +116,14 @@
 | B 正确性/隔离 | 完成 | B1 |
 | C 数据可靠性 | 完成 | C1 |
 | D 安全与运维 | 部分完成 | D1 已完成应用层边界；结构化日志/指标仍未做 |
-| E 部署与交付 | 未开始 | 依赖锁、CI、Docker 重建、升级/回滚 runbook |
+| E 部署与交付 | 部分完成 | E1 完成依赖锁、CI、Docker 重建；升级/回滚 runbook 未做 |
 | F 性能与质量 | 未开始 | 需先有测量；评测归因也需拆分 |
 
-建议下一项：**E1 依赖锁定 + CI + Docker 重建**。理由是公网部署还缺可复现构建和自动化门禁；之后再做 R10 引用后校验/F 阶段评测。
+建议下一项：**R10 引用运行时后校验**。当前引用编号虽然在生成时由代码注册，但模型输出的越界 `[n]`、编造链接只在评测阶段才会被发现；上线前应在 writer 出口做一次确定性校验/剔除并留痕。之后再做 E2 结构化日志与 runbook、F 阶段评测拆分。
 
 ## 4. 部署检查清单（公网）
 
+- [x] 依赖锁定 + CI + Docker 镜像构建（E1）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
@@ -129,7 +147,7 @@
 - 报告引用在运行时没有后校验；越界 `[n]` 目前只能靠评测发现（R10 待做）。
 - LLM judge 与研究共用同一模型时存在系统性偏差；对外数字需更强模型复评。
 - 评测 A/B 曾同时调整 4 个参数，0.82→1.00 不能单独归因于“代码生成引用编号”（baseline 已有注册表）；README 已修正口径。
-- 尚未配置 CI、依赖锁、结构化日志与指标。
+- 结构化日志/指标、非 root 容器、升级/回滚 runbook 仍未做；CI 已配置但尚未在 GitHub Actions 上实跑确认。
 
 ## 6. 复现与验证
 
