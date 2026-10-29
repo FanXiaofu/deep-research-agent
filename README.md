@@ -122,6 +122,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
+- 结构化日志：默认 JSON 行输出到 stdout，含 `request_id` / `thread_id`；响应头透传 `X-Request-ID`，SSE 事件也带这两个 id，便于按一次请求/一轮研究检索日志
 - 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
@@ -159,7 +160,7 @@ python maintenance.py restore backups/checkpoints-20261029-112638-590354.db --ta
 - Docker 的 `./data` 卷同时保存 `checkpoints.db` 与 `memory.db`；容器重建不会丢研究档案。
 - `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)。
 
 ## Langfuse 全链路追踪
 
@@ -201,6 +202,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `REVIEW_POINTS` / `PLAN_REVIEW_MIN_SUBQUESTIONS` | 人工审核点位：`brief`（任务书）/ `plan`（子问题），逗号分隔，空=全自动；plan 点位仅首次规划生效，子问题数低于阈值时不暂停 |
 | `COMPACTION_ENABLED` / `COMPACT_TRIGGER_CHARS` / `COMPACT_TARGET_CHARS` | 笔记压缩开关、触发阈值、压缩后总字数目标 |
 | `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
+| `LOG_LEVEL` / `LOG_JSON` | 日志级别与格式；默认 `INFO` + JSON 行，本地想看可读文本设 `LOG_JSON=0` |
 | `APP_AUTH_TOKEN` | Bearer 访问令牌；留空仅允许本机回环，公网部署必须设置足够长的随机值 |
 | `APP_RATE_LIMIT_PER_MINUTE` | 单进程每 IP 每分钟研究/续跑请求上限（默认 30）；多 worker 需换共享限流 |
 | `APP_MAX_TOPIC_CHARS` / `APP_MAX_REVIEW_CHARS` | 研究主题与人工审核内容的长度上限 |
@@ -267,7 +269,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 144 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、writer 降级
+python -m pytest tests -q     # 149 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志、writer 降级
 ```
 
 ## 里程碑
@@ -306,6 +308,8 @@ python -m pytest tests -q     # 144 个用例：预算判定、LLM 超时/重试
   - 实测：镜像 413MB；容器内 `/healthz` 返回 200；`nh3/langgraph/fastapi` 导入正常；Actions run #1/#2 成功
 - [x] **R10 引用后校验**：writer 出口剔除越界 `[n]`、把未知正文链接降级为纯文本，审计写入状态/CLI/前端/评测；报告附「引用校验说明」
   - 测试 144 个；与评测侧共用 `citations.py` 的引用正则，避免两套口径漂移
+- [x] **E2 可运维性**：JSON 结构化日志（request_id/thread_id）、请求头 `X-Request-ID`、异常堆栈落日志；新增 [docs/runbook.md](docs/runbook.md)（升级/回滚/备份/密钥轮换/排障）
+  - 测试 149 个；真实 uvicorn 验证 JSON 行与 request_id 透传
 
 ## 评测体系（W3）
 

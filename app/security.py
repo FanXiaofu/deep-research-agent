@@ -5,6 +5,7 @@
 既能保持本地开发体验，又避免"部署到公网后裸奔"。
 """
 import hmac
+import logging
 import threading
 import time
 
@@ -13,10 +14,16 @@ from fastapi import HTTPException, Request
 import config
 
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+logger = logging.getLogger("deep_research.security")
 
 
 def _client_host(request: Request) -> str:
     return (request.client.host if request.client else "") or ""
+
+
+def _client_path(request: Request) -> str:
+    url = getattr(request, "url", None)
+    return getattr(url, "path", "-") or "-"
 
 
 def require_auth(request: Request) -> None:
@@ -24,6 +31,10 @@ def require_auth(request: Request) -> None:
     if token:
         supplied = request.headers.get("authorization", "")
         if not hmac.compare_digest(supplied, f"Bearer {token}"):
+            logger.warning(
+                "auth_failed",
+                extra={"client": _client_host(request), "path": _client_path(request)},
+            )
             raise HTTPException(
                 status_code=401,
                 detail="缺少或错误的访问令牌（Authorization: Bearer <APP_AUTH_TOKEN>）",
@@ -32,6 +43,10 @@ def require_auth(request: Request) -> None:
         return
     if _client_host(request) in _LOOPBACK_HOSTS:
         return
+    logger.warning(
+        "auth_denied_no_token",
+        extra={"client": _client_host(request), "path": _client_path(request)},
+    )
     raise HTTPException(
         status_code=403,
         detail="服务未配置 APP_AUTH_TOKEN，拒绝非本机访问",
@@ -58,6 +73,7 @@ class RateLimiter:
             self._counts[key] = count
         if count > self.limit:
             retry_after = max(1, 60 - int(now % 60))
+            logger.warning("rate_limited", extra={"client": key, "retry_after_s": retry_after})
             raise HTTPException(
                 status_code=429,
                 detail=f"请求过于频繁（每分钟最多 {self.limit} 次），请稍后重试",

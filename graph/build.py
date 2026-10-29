@@ -23,6 +23,7 @@ from langgraph.types import RetryPolicy, Send
 
 import config
 import db
+import logging_config
 import run_context
 from graph.nodes import (
     archivist,
@@ -44,7 +45,8 @@ def _bind_run(fn):
     """节点入口绑定本轮 run：并行 researcher 在各自线程里也能读写同一份 run 状态。"""
 
     def wrapped(state):
-        with run_context.run_scope(state.get("run_id")):
+        run_id = state.get("run_id")
+        with run_context.run_scope(run_id), logging_config.thread_scope(run_id):
             return fn(state)
 
     return wrapped

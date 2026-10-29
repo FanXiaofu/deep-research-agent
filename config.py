@@ -119,6 +119,10 @@ LLM_NATIVE_OLLAMA = os.getenv("LLM_NATIVE_OLLAMA", "0") == "1"
 # 客户端在估算用量接近上限时显式告警。换模型时按模型实际窗口调整。
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
+# ==== 日志（Web 默认 JSON 行，便于容器采集）====
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_JSON = os.getenv("LOG_JSON", "1") == "1"
+
 # ==== Web 安全（公网部署时 APP_AUTH_TOKEN 必填）====
 # 留空只允许本机回环访问；对外部署必须设置一个足够长的随机 token（Bearer）。
 APP_AUTH_TOKEN = os.getenv("APP_AUTH_TOKEN", "")
@@ -204,6 +208,8 @@ def runtime_config_errors() -> list[str]:
         )
     if LLM_MAX_RETRIES < 0:
         errors.append(f"LLM_MAX_RETRIES 不能为负数（当前 {LLM_MAX_RETRIES}）")
+    if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        errors.append(f"LOG_LEVEL={LOG_LEVEL!r} 不支持")
     return errors
 
 

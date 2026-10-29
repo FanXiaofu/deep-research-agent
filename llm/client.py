@@ -4,8 +4,8 @@ Langfuse 配置了 key 时自动换成 langfuse.openai 的追踪版客户端，
 每次调用的 token 用量/延迟自动上报，作为 @observe span 的子节点。
 """
 import json
+import logging
 import re
-import sys
 
 import httpx
 import observability
@@ -16,6 +16,7 @@ import config
 import reliability
 
 _client: OpenAI | None = None
+logger = logging.getLogger("deep_research.llm")
 
 # qwen3 等思考型模型可能把推理过程以 <think> 标签混入 content，统一剥离
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -165,10 +166,9 @@ def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: 
         msgs.insert(0, {"role": "system", "content": _NATIVE_SYSTEM})
     prompt_tokens = sum(estimate_tokens(m["content"]) for m in msgs)
     if prompt_tokens > config.OLLAMA_NUM_CTX * 0.8:
-        print(
-            f"[warn] 提示词约 {prompt_tokens} tokens，逼近 num_ctx={config.OLLAMA_NUM_CTX} 上限，"
-            f"超出部分会被服务端静默截断（调大 OLLAMA_NUM_CTX 或缩小进入提示词的正文/笔记）",
-            file=sys.stderr,
+        logger.warning(
+            "ollama prompt near context limit",
+            extra={"prompt_tokens": prompt_tokens, "num_ctx": config.OLLAMA_NUM_CTX},
         )
         reliability.record_degradation("ollama_ctx", f"提示词约 {prompt_tokens} tokens 逼近 num_ctx={config.OLLAMA_NUM_CTX}")
     body = {

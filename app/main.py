@@ -13,7 +13,9 @@
 checkpoint 连接仍是进程级共享（SQLite 单连接）。
 """
 import json
+import logging
 import queue
+import re
 import threading
 import time
 import uuid
@@ -22,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+import logging_config
 import markdown as md_lib
 import nh3
 import observability
@@ -42,6 +45,7 @@ from llm.client import USAGE
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # 配置错误在启动时暴露，而不是等到检索阶段退化成空报告
+    logging_config.setup_logging(config.LOG_LEVEL, config.LOG_JSON)
     config.validate_runtime_config()
     yield
 
@@ -50,6 +54,8 @@ app = FastAPI(title="Deep Research Agent", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _research_app = None
+logger = logging.getLogger("deep_research.web")
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 @app.middleware("http")
@@ -67,6 +73,46 @@ async def reject_oversized_body(request: Request, call_next):
                 content={"detail": f"请求体过大（上限 {config.APP_MAX_REQUEST_BYTES} 字节）"},
             )
     return await call_next(request)
+
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    """分配/透传 request_id，记录一次请求的结构化日志。"""
+    candidate = request.headers.get("x-request-id", "")
+    request_id = candidate if _REQUEST_ID_RE.match(candidate) else uuid.uuid4().hex[:12]
+    token = logging_config.request_id_var.set(request_id)
+    started = time.perf_counter()
+    client = request.client.host if request.client else "-"
+    try:
+        response = await call_next(request)
+        if request.url.path != "/healthz":
+            logger.info(
+                "http_request",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                    "client": client,
+                    "request_id": request_id,
+                },
+            )
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception:
+        logger.exception(
+            "http_request_failed",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 1),
+                "client": client,
+                "request_id": request_id,
+            },
+        )
+        raise
+    finally:
+        logging_config.request_id_var.reset(token)
 
 
 class ResearchRequest(BaseModel):
@@ -190,33 +236,42 @@ def _report_event(state: dict, elapsed: float) -> str:
             "memory_written": state.get("memory_written", 0),
             "memory_enabled": config.MEMORY_ENABLED,
             "citation_audit": state.get("citation_audit") or {},
+            "request_id": logging_config.get_request_id(),
         },
     })
 
 
-def _stream(payload, cfg: dict, started: float):
+def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
     """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。
 
     图在独立 worker 线程里执行，事件经队列回到 SSE 生成器：sync 生成器可能被
     Starlette 在线程池里分多次 next() 推进，ContextVar token 不能跨 context 重置，
-    因此 run_scope 和 trace_context 必须固定在 worker 的同一个 context 内。
+    因此 run_scope、request/thread 日志上下文和 trace_context 必须固定在 worker 的同一个 context 内。
     中断时保留上下文供 /resume 续用，正常出报告后释放。
     """
     run_id = cfg["configurable"]["thread_id"]
+    request_id = request_id or logging_config.get_request_id()
     events: queue.Queue = queue.Queue()
     completed = False
 
     def worker():
-        with run_context.run_scope(run_id):
+        with (
+            logging_config.request_scope(request_id),
+            logging_config.thread_scope(run_id),
+            run_context.run_scope(run_id),
+        ):
             with observability.trace_context(run_id, trace_name="deep-research"):
+                logger.info("research_started", extra={"thread_id": run_id})
                 try:
                     for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
                         events.put(("update", update))
                     state = get_research_app().get_state(cfg).values or {}
                     events.put(("report", _report_event(state, time.time() - started)))
                 except Exception as exc:
+                    logger.exception("research_failed", extra={"thread_id": run_id})
                     events.put(("error", f"{type(exc).__name__}: {exc}"))
                 finally:
+                    logger.info("research_finished", extra={"thread_id": run_id})
                     events.put(("done", None))
 
     threading.Thread(target=worker, daemon=True).start()
@@ -226,7 +281,12 @@ def _stream(payload, cfg: dict, started: float):
         if kind == "done":
             break
         if kind == "error":
-            yield sse({"type": "error", "message": data})
+            yield sse({
+                "type": "error",
+                "message": data,
+                "thread_id": run_id,
+                "request_id": request_id,
+            })
             continue
         if kind == "report":
             completed = True
@@ -240,6 +300,7 @@ def _stream(payload, cfg: dict, started: float):
             yield sse({
                 "type": "interrupt",
                 "thread_id": run_id,
+                "request_id": request_id,
                 "kind": value.get("kind", "brief"),
                 "title": value.get("title", ""),
                 "content": value.get("content", ""),
@@ -253,6 +314,7 @@ def _stream(payload, cfg: dict, started: float):
                     "type": "node_done",
                     "label": NODE_LABELS.get(node, node),
                     "elapsed_s": round(time.time() - started, 1),
+                    "request_id": request_id,
                 })
                 yield sse(ev)
 
@@ -303,7 +365,8 @@ def index(request: Request):
     "/api/research/stream",
     dependencies=[Depends(security.require_auth), Depends(security.enforce_rate_limit)],
 )
-def research_stream(payload: ResearchRequest):
+def research_stream(payload: ResearchRequest, request: Request):
+    request_id = logging_config.get_request_id()
     # 越界参数直接 400，而不是静默降级成空报告（rounds<=0 会让 researcher 一次都不检索）
     try:
         eff_sub, eff_rounds = config.validate_scale(payload.max_sub, payload.rounds)
@@ -332,8 +395,8 @@ def research_stream(payload: ResearchRequest):
     started = time.time()
 
     def gen():
-        yield sse({"type": "start", "thread_id": tid, "topic": payload.topic})
-        yield from _stream(state, cfg, started)
+        yield sse({"type": "start", "thread_id": tid, "topic": payload.topic, "request_id": request_id})
+        yield from _stream(state, cfg, started, request_id=request_id)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
@@ -342,8 +405,9 @@ def research_stream(payload: ResearchRequest):
     "/api/resume/stream",
     dependencies=[Depends(security.require_auth), Depends(security.enforce_rate_limit)],
 )
-def resume_stream(payload: ResumeRequest):
+def resume_stream(payload: ResumeRequest, request: Request):
     """human-in-the-loop：value 为空表示确认原内容，非空表示整组替换（按当前中断的 kind 解释）。"""
+    request_id = logging_config.get_request_id()
     cfg = thread_config(payload.thread_id)
     command = Command(resume=payload.value or "")
     with run_context.run_scope(payload.thread_id):
@@ -352,8 +416,8 @@ def resume_stream(payload: ResumeRequest):
     started = time.time()
 
     def gen():
-        yield sse({"type": "resume", "thread_id": payload.thread_id})
-        yield from _stream(command, cfg, started)
+        yield sse({"type": "resume", "thread_id": payload.thread_id, "request_id": request_id})
+        yield from _stream(command, cfg, started, request_id=request_id)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
