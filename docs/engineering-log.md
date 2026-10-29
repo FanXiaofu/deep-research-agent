@@ -26,7 +26,7 @@
 | `e73d3af` | D3：/metrics + 非 root 容器 |
 | `d5d5861` | P0：多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
 | `319693f` | P1.1：Postgres checkpoint/memory + 迁移 + CI postgres job |
-| `P1.2`（本轮提交） | Redis 共享限流/指标 + CI redis job |
+| `2999f8e` | P1.2：Redis 共享限流/指标 + CI redis job |
 
 推送状态：
 
@@ -210,7 +210,7 @@
   - README/production/runbook 补 Redis 部署与故障行为。
 - 验证：158 SQLite tests；2 Redis 集成用例用 fakeredis 验证限流 429、指标聚合与文本输出（本地 Docker engine 不稳定，真实 Redis 由 CI service 验证）。
 - 遗留：日志仍按实例采集；多实例负载均衡/SSE 超时、账号/RBAC 仍未做。
-- 提交：本轮提交。
+- 提交：`2999f8e`。
 
 ## 3. 路线状态
 
