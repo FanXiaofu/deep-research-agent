@@ -298,7 +298,8 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `<NAME>_FILE` | 敏感配置从文件读取（Docker/K8s secret），优先于同名环境变量；支持 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key |
 | `GROUNDING_AUDIT_ENABLED` / `GROUNDING_LEXICAL_THRESHOLD` | 是否在报告出口做证据支撑审计，以及词面覆盖阈值（默认开 / 0.15） |
 | `GROUNDING_JUDGE_MODEL` / `GROUNDING_MAX_CLAIMS` | 语义 judge 模型（留空只用词面审计）与最多核查句数（默认 8） |
-| `JUDGE_PROVIDER` / `JUDGE_MODEL` / `JUDGE_EFFORT` | 评测 judge：`local` 复用 LLM，或 `commandcode` 通过 `cmdc` headless 调 Go 套餐模型；commandcode 模式需 `COMMAND_CODE_API_KEY` |
+| `JUDGE_PROVIDER` / `JUDGE_MODEL` / `JUDGE_EFFORT` | 评测 judge：`local` 用项目 OpenAI 客户端（可指向 Provider API），或 `commandcode` 通过 `cmdc` headless；commandcode 模式需 `COMMAND_CODE_API_KEY` |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | 研究模型；Command Code Provider API 用 `https://api.commandcode.ai/provider/v1` + `deepseek/deepseek-v4-pro`，并设 `LLM_NATIVE_OLLAMA=0` |
 | `SAFETY_JUDGE_MODEL` | 可选内容安全 judge；留空关闭。只追加风险审计，不是合规分类器 |
 | `BACKUP_ENCRYPTION_KEY` | 备份 Fernet key；`maintenance.py backup --encrypt` 使用 |
 | `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |

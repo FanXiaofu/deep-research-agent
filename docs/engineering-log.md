@@ -319,6 +319,8 @@
 - 验证：188 SQLite tests；适配器 fake subprocess 测试；真实 key 最小调用解析通过；key 未写入仓库。
 - 独立 judge smoke 10（`p18_cc_smoke`）：10/10 完成；faithfulness 3.6、coverage 2.7、citation_quality 2.4、must_cover 0.5；同题同模型 qwen 为 4.6/4.1/4.5/0.733，确认同 judge 分数偏高。独立 judge 均值耗时 205.9s/题（含 3 次 CLI 调用）。
 - 限制：`cmdc` 是编码 Agent，不是专用 judge，可能偏严；需要 Go+ 套餐/登录或 API key；仍不是 110 题独立复评。
+- API 研究模型单题：`deepseek/deepseek-v4-pro` 研究 + `Qwen/Qwen3.8-Max` judge，q01 为 4/3/3、must_cover 1.0、citation_validity 1.0，耗时 517.9s、研究 token 18277/17541、研究成本估价 $0.0242；仅单题。
+- API 配置：`LLM_BASE_URL=https://api.commandcode.ai/provider/v1`、`LLM_MODEL=deepseek/deepseek-v4-pro`、`LLM_NATIVE_OLLAMA=0`、`JUDGE_PROVIDER=local`、`JUDGE_MODEL=Qwen/Qwen3.8-Max`。
 - 提交：`f7f40e3`。
 
 ## 3. 路线状态

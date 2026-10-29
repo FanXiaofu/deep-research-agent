@@ -105,6 +105,24 @@ baseline q01 正文实际 **0 条引用**，同模型 judge 仍给了 citation_q
 
 注意：`cmdc` 是编码 Agent，不是专用 judge；它可能比理想 judge 更严格，这仍是“另一个 judge 的信号”，不是人工真值。
 
+## API 研究模型单题验证
+
+配置改为研究 `deepseek/deepseek-v4-pro`、judge `Qwen/Qwen3.8-Max`（均走 Command Code Provider API），跑 q01：
+
+| 指标 | 值 |
+|---|---:|
+| faithfulness / coverage / citation_quality | 4 / 3 / 3 |
+| must_cover_coverage | 1.0 |
+| citation_validity | 1.0 |
+| source_utilization | 0.538 |
+| 引用数 / 来源数 | 38 / 13 |
+| LLM 调用 | 9 |
+| tokens 输入/输出 | 18277 / 17541 |
+| 耗时 | 517.9s |
+| 研究成本估算 | $0.0242（judge 另计） |
+
+单题结果，不是完整批次。API 模型明显比本地 qwen 慢、token 更多；下一步应先确认成本和延迟是否可接受，再跑 smoke 10。
+
 ## 结论与限制
 
 - 真实链路可跑通，引用编号校验为 1.0；全量 20 题同 judge 结果是可复现基线，但不是独立质量结论。
