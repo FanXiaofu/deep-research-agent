@@ -123,8 +123,8 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
 - 结构化日志：默认 JSON 行输出到 stdout，含 `request_id` / `thread_id`；响应头透传 `X-Request-ID`，SSE 事件也带这两个 id，便于按一次请求/一轮研究检索日志
-- 运行指标：`GET /metrics` 返回请求计数与 research started/finished/failed/active；需认证，本机回环可免
-- 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
+- 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；可用 `APP_AUTH_TOKENS` 配置多个 token，限流按 token 分桶；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
+- 运行指标：`GET /metrics` 输出 Prometheus 文本；`/metrics.json` 输出 JSON 快照（请求计数 + research 状态）；需认证
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
 
@@ -163,7 +163,7 @@ python maintenance.py restore backups/checkpoints-20261029-112638-590354.db --ta
 - Docker 的 `./data` 卷同时保存 `checkpoints.db` 与 `memory.db`；容器重建不会丢研究档案。
 - `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；单实例公网部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
 
 ## Langfuse 全链路追踪
 
@@ -208,6 +208,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
 | `LOG_LEVEL` / `LOG_JSON` | 日志级别与格式；默认 `INFO` + JSON 行，本地想看可读文本设 `LOG_JSON=0` |
 | `APP_AUTH_TOKEN` | Bearer 访问令牌；留空仅允许本机回环，公网部署必须设置足够长的随机值 |
+| `APP_AUTH_TOKENS` | 多客户端 token，逗号分隔；与 `APP_AUTH_TOKEN` 合并，限流按 token 分桶 |
 | `APP_RATE_LIMIT_PER_MINUTE` | 单进程每 IP 每分钟研究/续跑请求上限（默认 30）；多 worker 需换共享限流 |
 | `APP_MAX_TOPIC_CHARS` / `APP_MAX_REVIEW_CHARS` | 研究主题与人工审核内容的长度上限 |
 | `APP_MAX_REQUEST_BYTES` | 单请求 Content-Length 上限（默认 64KB）；chunked 请求体需在反向代理层限制 |
@@ -273,7 +274,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 156 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志/指标、评测分位数/单变量覆盖、writer 降级
+python -m pytest tests -q     # 158 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志/指标、评测分位数/单变量覆盖、writer 降级
 ```
 
 ## 里程碑
@@ -318,6 +319,8 @@ python -m pytest tests -q     # 156 个用例：预算判定、LLM 超时/重试
   - 测试 154 个；历史批次 p50/p95 见 [comparison.md](eval/results/comparison.md)；真实单变量批次需模型在线时补跑
 - [x] **D3 指标与非 root 容器**：`GET /metrics`（请求计数 + research 状态）；镜像改为 UID 10001 非 root 运行；Docker 无 token 启动时写 warning
   - 测试 156 个；容器内 `id -u` = 10001，`/healthz` 200，带 token 的 `/metrics` 正常
+- [x] **P0 生产化切片**：多 token + 按 token 限流；Prometheus 文本指标；CI 增加容器 runtime job（健康检查 + 非 root）；Caddy TLS 反代示例与 [docs/production.md](docs/production.md)
+  - 测试 158 个；单实例公网服务目标；多实例的 Postgres/Redis/RBAC 明确列为 P1，不在当前基线内
 
 ## 评测体系（W3）
 

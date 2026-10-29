@@ -51,6 +51,7 @@ ormsgpack==1.12.2
 packaging==26.3
 pluggy==1.6.0
 primp==2.0.0
+prometheus_client==0.26.0
 protobuf==7.36.1
 pydantic_core==2.46.5
 pydantic==2.13.5

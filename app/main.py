@@ -34,7 +34,7 @@ import run_context
 from app import security
 from budget import BUDGET
 from fastapi import Depends, FastAPI, HTTPException, Path as ApiPath, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
 from pydantic import BaseModel, Field
@@ -91,17 +91,20 @@ async def request_logging(request: Request, call_next):
     client = request.client.host if request.client else "-"
     try:
         response = await call_next(request)
-        metrics.record_request(request.url.path, response.status_code)
+        route = request.scope.get("route")
+        metric_path = getattr(route, "path", request.url.path)
+        metrics.record_request(metric_path, response.status_code)
         if request.url.path != "/healthz":
             logger.info(
                 "http_request",
                 extra={
                     "method": request.method,
-                    "path": request.url.path,
+                    "path": metric_path,
                     "status": response.status_code,
                     "duration_ms": round((time.perf_counter() - started) * 1000, 1),
                     "client": client,
                     "request_id": request_id,
+                    "token_id": getattr(request.state, "token_id", "-"),
                 },
             )
         response.headers["X-Request-ID"] = request_id
@@ -342,7 +345,16 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
 
 @app.get("/metrics", dependencies=[Depends(security.require_auth)])
 def metrics_endpoint():
-    """进程级运行指标；JSON 便于直接采集，无需额外依赖。"""
+    """Prometheus 文本格式的运行指标。"""
+    return PlainTextResponse(
+        metrics.render(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@app.get("/metrics.json", dependencies=[Depends(security.require_auth)])
+def metrics_json():
+    """便于 curl/人工排查的 JSON 快照。"""
     return metrics.snapshot()
 
 

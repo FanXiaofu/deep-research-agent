@@ -128,6 +128,8 @@ LOG_JSON = os.getenv("LOG_JSON", "1") == "1"
 # ==== Web 安全（公网部署时 APP_AUTH_TOKEN 必填）====
 # 留空只允许本机回环访问；对外部署必须设置一个足够长的随机 token（Bearer）。
 APP_AUTH_TOKEN = os.getenv("APP_AUTH_TOKEN", "")
+# 多个客户端 token，逗号分隔；与 APP_AUTH_TOKEN 合并生效
+APP_AUTH_TOKENS = os.getenv("APP_AUTH_TOKENS", "")
 APP_RATE_LIMIT_PER_MINUTE = int(os.getenv("APP_RATE_LIMIT_PER_MINUTE", "30"))
 APP_MAX_TOPIC_CHARS = int(os.getenv("APP_MAX_TOPIC_CHARS", "500"))
 APP_MAX_REVIEW_CHARS = int(os.getenv("APP_MAX_REVIEW_CHARS", "5000"))

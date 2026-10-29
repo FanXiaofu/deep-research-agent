@@ -15,7 +15,7 @@ thread_id_var = contextvars.ContextVar("thread_id", default="-")
 
 _EXTRA_FIELDS = (
     "method", "path", "status", "duration_ms", "client",
-    "topic", "thread_id", "prompt_tokens", "num_ctx", "outcome", "retry_after_s",
+    "topic", "thread_id", "prompt_tokens", "num_ctx", "outcome", "retry_after_s", "token_id",
 )
 
 

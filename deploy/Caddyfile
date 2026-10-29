@@ -1,0 +1,29 @@
+# 单实例公网部署示例：Caddy 负责 TLS + 反向代理。
+# 用法：
+#   1) DNS 把 APP_DOMAIN 指向本机；
+#   2) 若 Caddy 与 app 在同一个 compose 网络：APP_DOMAIN=research.example.com caddy run
+#   3) 若 Caddy 跑在宿主机、app 发布在 127.0.0.1:8000：把 app:8000 改成 127.0.0.1:8000
+# Caddy 会自动申请/续期证书；80/443 需要对外放行，8000 不要对公网开放。
+
+{$APP_DOMAIN} {
+    encode zstd gzip
+
+    reverse_proxy app:8000 {
+        # SSE 需要立即刷出，不能等缓冲
+        flush_interval -1
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        # 页面使用内联 style/script；如果后续拆成外部静态文件，可去掉 unsafe-inline
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}

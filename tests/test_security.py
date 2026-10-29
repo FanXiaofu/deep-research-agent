@@ -1,4 +1,5 @@
 """D1：Bearer 认证、回环兜底与限流。"""
+import hashlib
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +10,11 @@ from app import security
 
 
 def _request(host="127.0.0.1", headers=None):
-    return SimpleNamespace(client=SimpleNamespace(host=host), headers=headers or {})
+    return SimpleNamespace(
+        client=SimpleNamespace(host=host),
+        headers=headers or {},
+        state=SimpleNamespace(),
+    )
 
 
 def test_token_required_when_configured(monkeypatch):
@@ -27,12 +32,23 @@ def test_token_required_when_configured(monkeypatch):
 
 def test_empty_token_allows_loopback_only(monkeypatch):
     monkeypatch.setattr(config, "APP_AUTH_TOKEN", "")
+    monkeypatch.setattr(config, "APP_AUTH_TOKENS", "")
 
     security.require_auth(_request(host="127.0.0.1"))
 
     with pytest.raises(HTTPException) as denied:
         security.require_auth(_request(host="203.0.113.10"))
     assert denied.value.status_code == 403
+
+
+def test_multiple_tokens_are_accepted(monkeypatch):
+    monkeypatch.setattr(config, "APP_AUTH_TOKEN", "")
+    monkeypatch.setattr(config, "APP_AUTH_TOKENS", "token-a, token-b")
+    request = _request(headers={"authorization": "Bearer token-b"})
+
+    security.require_auth(request)
+
+    assert request.state.token_id == hashlib.sha256(b"token-b").hexdigest()[:8]
 
 
 def test_rate_limiter_blocks_after_limit(monkeypatch):

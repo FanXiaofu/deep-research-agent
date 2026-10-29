@@ -4,6 +4,7 @@
 因此不需要额外的 CSRF token。未配置 APP_AUTH_TOKEN 时只允许回环地址，
 既能保持本地开发体验，又避免"部署到公网后裸奔"。
 """
+import hashlib
 import hmac
 import logging
 import threading
@@ -26,21 +27,29 @@ def _client_path(request: Request) -> str:
     return getattr(url, "path", "-") or "-"
 
 
+def configured_tokens() -> list[str]:
+    raw = f"{config.APP_AUTH_TOKEN},{config.APP_AUTH_TOKENS}"
+    return [token.strip() for token in raw.split(",") if token.strip()]
+
+
 def require_auth(request: Request) -> None:
-    token = config.APP_AUTH_TOKEN.strip()
-    if token:
+    tokens = configured_tokens()
+    if tokens:
         supplied = request.headers.get("authorization", "")
-        if not hmac.compare_digest(supplied, f"Bearer {token}"):
-            logger.warning(
-                "auth_failed",
-                extra={"client": _client_host(request), "path": _client_path(request)},
-            )
-            raise HTTPException(
-                status_code=401,
-                detail="缺少或错误的访问令牌（Authorization: Bearer <APP_AUTH_TOKEN>）",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return
+        for token in tokens:
+            if hmac.compare_digest(supplied, f"Bearer {token}"):
+                token_id = hashlib.sha256(token.encode("utf-8")).hexdigest()[:8]
+                request.state.token_id = token_id
+                return
+        logger.warning(
+            "auth_failed",
+            extra={"client": _client_host(request), "path": _client_path(request)},
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="缺少或错误的访问令牌（Authorization: Bearer <APP_AUTH_TOKEN>）",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if _client_host(request) in _LOOPBACK_HOSTS:
         return
     logger.warning(
@@ -92,7 +101,9 @@ def get_limiter() -> RateLimiter:
 
 
 def enforce_rate_limit(request: Request) -> None:
-    get_limiter().check(_client_host(request) or "unknown")
+    token_id = getattr(request.state, "token_id", None)
+    key = f"token:{token_id}" if token_id else (_client_host(request) or "unknown")
+    get_limiter().check(key)
 
 
 def reset_limiter() -> None:

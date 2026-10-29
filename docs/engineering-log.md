@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **156 passed**
+- 验证基线：`python -m pytest tests -q` → **158 passed**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -24,11 +24,12 @@
 | `4daa6f6` | E2：结构化日志 + 运行手册 |
 | `2f732ba` | F1：可测量评测 + 单变量覆盖 |
 | `e73d3af` | D3：/metrics + 非 root 容器 |
+| `P0`（本轮提交） | 多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `9d2d677`，tag `v0.1.0-audit-baseline` 已推送；F1/D3 与本文档更新随后补推；
+- 远端 `main` 已包含到 `4748104`，tag `v0.1.0-audit-baseline` 已推送；P0 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -170,6 +171,19 @@
 - 遗留：metrics 为进程级 JSON，未接 Prometheus；多 worker 下计数各自独立。
 - 提交：`e73d3af`。
 
+### P0 单实例公网生产化
+
+- 目标：把“可部署”推进到“单实例公网服务可运维”，明确不追求多租户/多实例。
+- 改动：
+  - `APP_AUTH_TOKENS` 支持多客户端 token，限流按 token 分桶；
+  - `/metrics` 输出 Prometheus 文本，`/metrics.json` 保留 JSON 快照；
+  - GitHub Actions 增加 `runtime` job：启动容器、检查 `/healthz`、验证 UID 10001；
+  - 新增 `deploy/Caddyfile`：TLS 自动证书、HSTS/CSP、SSE `flush_interval -1`；
+  - 新增 `docs/production.md`：目标拓扑、部署步骤、安全/备份/监控/容量/发布回滚、P1 扩展触发条件。
+- 验证：158 tests；Prometheus 文本包含请求/研究指标；本机容器 `/healthz`、`/metrics`（带 token）、非 root UID 已验证；CI runtime job 待本轮推送后确认。
+- 遗留（明确不覆盖）：多租户/RBAC、Postgres/Redis、多实例水平扩展、语义级引用核验、加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
+- 提交：本轮提交。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -180,12 +194,21 @@
 | D 安全与运维 | 完成 | D1 应用层安全 + E2 日志/健康检查 + D3 指标/非 root |
 | E 部署与交付 | 完成 | E1 依赖锁/CI/Docker；E2 日志与 runbook |
 | F 性能与质量 | 部分完成 | R10 引用校验 + F1 分位数/单变量工具；真实单变量批次待模型在线 |
+| P0 单实例公网生产化 | 完成 | 多 token、Prometheus、CI runtime、Caddy/生产文档 |
+| P1 多实例/多租户 | 未开始 | Postgres/Redis/RBAC/水平扩展；需独立架构阶段 |
 
-工程化 A–F 基线已闭环。剩余未完成项只有需要真实模型/外部环境的验证，不建议在没有测量条件时编造数字：
+工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
+
+**需要真实模型/外部环境验证，不伪造数字：**
 - F1 真实单变量 A/B（Ollama 在线时跑）；
 - 独立强 judge 复评全量 20 题；
-- 真实 kill/restart 的 `--resume` 演示；
-- 多 worker 共享限流（当前单进程足够）。
+- 真实 kill/restart 的 `--resume` 演示。
+
+**P1 架构阶段（当前单实例基线明确不覆盖）：**
+- Postgres checkpointer/memory、Redis 限流、共享指标；
+- 多租户账号/RBAC/配额/审计；
+- 语义级引用核验、提示词注入防护、内容安全；
+- 加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
 
 ## 4. 部署检查清单（公网）
 
@@ -194,6 +217,7 @@
 - [x] 结构化日志 + 请求 ID + 升级/回滚 runbook（E2）
 - [x] 分位数/单变量评测工具 + 历史批次重算（F1）
 - [x] `/metrics` 运行指标 + 非 root 容器（D3）
+- [x] 多 token + Prometheus + CI runtime + Caddy/生产文档（P0）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

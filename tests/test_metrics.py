@@ -24,14 +24,22 @@ def setup_function(_func):
 
 
 def test_metrics_endpoint_reports_requests():
-    assert client.get("/metrics").status_code == 200
+    assert client.get("/metrics.json").status_code == 200
     client.get("/")
 
     snapshot = metrics.snapshot()
 
-    assert snapshot["requests"]["/metrics 200"] == 1
+    assert snapshot["requests"]["/metrics.json 200"] == 1
     assert snapshot["requests"]["/ 200"] == 1
     assert snapshot["uptime_s"] >= 0
+
+
+def test_prometheus_metrics_text():
+    resp = client.get("/metrics")
+
+    assert resp.status_code == 200
+    assert "dr_http_requests_total" in resp.text
+    assert "dr_research_active" in resp.text
 
 
 def test_research_metrics_count_start_and_completion(monkeypatch):
