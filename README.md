@@ -375,6 +375,12 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 python -m pytest tests -q     # 194 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、API 空响应、JSON mode 400 回退、Agent 动作循环、日志/指标、评测分位数、Postgres/Redis
 ```
 
+## 部署到 Render
+
+仓库包含 `render.yaml`：Docker Web Service + Render Postgres（checkpoint/memory/auth）。首次部署需要在 Render 填写 `LLM_API_KEY`、`SEARCH_API_KEY`、`APP_AUTH_TOKEN`。
+
+完整步骤、免费层限制和排障见 [docs/deploy-render.md](docs/deploy-render.md)。
+
 ## 里程碑
 
 - [x] **W1 最小闭环**：LangGraph 线性流水线 + Tavily 检索 + CLI，产出带引用报告

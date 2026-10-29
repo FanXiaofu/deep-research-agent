@@ -319,7 +319,12 @@ def _stream(
     threading.Thread(target=worker, daemon=True).start()
 
     while True:
-        kind, data = events.get()
+        try:
+            kind, data = events.get(timeout=15)
+        except queue.Empty:
+            # Render/反向代理会断开长时间无数据的连接；SSE 注释帧不触发前端事件。
+            yield ": heartbeat\n\n"
+            continue
         if kind == "done":
             break
         if kind == "error":

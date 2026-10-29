@@ -339,6 +339,14 @@
 - Judge 策略：Qwen Flash 本地 judge 卡住超过 10 分钟，弃用；默认 `JUDGE_PROVIDER=commandcode`，子进程 timeout 240s；`LLM_CALL_TIMEOUT_S=300`。
 - 验证：194 SQLite tests。
 
+### Render 部署（P3）
+
+- 新增 `render.yaml`：Docker Web Service + Render Postgres；checkpoint/memory/auth 走 Postgres；Web/DB 默认 free，长期需升级。
+- Dockerfile 改为读取 Render 注入的 `PORT`，healthcheck 同步跟随；本地默认仍为 8000。
+- SSE `_stream` 每 15 秒发送注释心跳，避免 Render/代理在长时间无节点事件时断开。
+- 文档：`docs/deploy-render.md`；首次 Blueprint 需填 `LLM_API_KEY`、`SEARCH_API_KEY`、`APP_AUTH_TOKEN`。
+- 限制：单实例；免费 Web 会休眠、免费 Postgres 有期限；多实例需额外 Key Value/Redis。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
