@@ -34,6 +34,7 @@ services:
     environment:
       CHECKPOINT_DB: /app/data/checkpoints.db
       MEMORY_DB: /app/data/memory.db
+      AUTH_DB: /app/data/auth.db
       # 容器内 app 走 compose 网络访问 Langfuse（本机跑 app 时用 .env 里的 localhost:3000）
       LANGFUSE_HOST: http://langfuse-web:3000
       # 容器内访问宿主机 Ollama 时取消注释：

@@ -1,4 +1,4 @@
-# 生产化落地说明（P0 + P1.1：单实例公网服务 / Postgres 存储）
+# 生产化落地说明（P0 + P1：单实例公网服务 / Postgres + Redis + 账号/RBAC）
 
 本文定义当前项目“向真实生产过渡”的目标形态、已具备能力和仍未覆盖的部分。
 **当前目标是单实例或少量实例、低并发的公网服务，不是多租户 SaaS。**
@@ -13,8 +13,8 @@ Caddy（TLS 自动证书、HSTS、CSP、SSE 不缓冲）
   │ 反向代理
   ▼
 app 容器（uvicorn，非 root UID 10001）
-  ├─ DATABASE_URL 存在 → Postgres（checkpoint + memory）
-  ├─ 否则 → ./data/checkpoints.db + ./data/memory.db（SQLite WAL）
+  ├─ DATABASE_URL 存在 → Postgres（checkpoint + memory + auth）
+  ├─ 否则 → ./data/checkpoints.db + memory.db + auth.db（SQLite WAL）
   ├─ REDIS_URL 存在 → 共享限流 + 指标计数
   └─ Langfuse（可选，自托管或 Cloud）
 ```
@@ -28,7 +28,7 @@ app 容器（uvicorn，非 root UID 10001）
 - 一台有公网 IP 的 Linux 主机（2C4G 起步），Docker + Compose；
 - 域名 A 记录指向主机；
 - 模型与搜索凭据：`LLM_*`、`SEARCH_*`；
-- 一个足够长的随机 `APP_AUTH_TOKEN`（或用 `APP_AUTH_TOKENS` 给多个客户端分发）；
+- 一个足够长的随机 `APP_AUTH_TOKEN`（admin，用于 bootstrap/监控），或用 `admin.py` 创建账号并签发 token；
 - 80/443 对外放行，8000 不对公网放行。
 
 ## 2.1 Postgres 后端（P1.1）
@@ -59,7 +59,23 @@ docker compose -f docker-compose.yml \
 - `/metrics` 从 Redis 汇总，Prometheus 抓任一实例都是全局计数；
 - Redis 故障时自动回退进程内限流/指标并写 warning；
 - Redis 只存限流窗口与指标计数，不持久化研究数据；
-- 多实例仍需负载均衡、SSE 超时与账号/RBAC，见第 7 节。
+- 多实例仍需负载均衡与 SSE 超时，见第 7 节。
+
+## 2.3 账号 / RBAC / 配额 / 审计（P1.3）
+
+```bash
+# 容器内或宿主机（AUTH_DB 指向 /app/data/auth.db）
+python admin.py create-user --username alice --role user --daily-quota 20
+python admin.py issue-token --username alice --name laptop   # 明文只显示一次
+python admin.py list-users
+python admin.py audit --limit 50
+```
+
+- 服务端只存 token SHA-256；用户用 `Authorization: Bearer <token>`。
+- `user`：只能访问自己发起的 thread，每日研究配额；`admin`：跨 thread、`/metrics`、`/api/audit`。
+- 研究开始消耗一次配额，续跑不重复消耗；审计记录 `research_start` / `research_finished` / `research_resume` 与 CLI 管理动作。
+- `AUTH_DB` 默认 `auth.db`；设置 `DATABASE_URL` 后 auth 表也在 Postgres。
+- 静态 `APP_AUTH_TOKEN(S)` 仍兼容，视为 admin；监控抓取 `/metrics` 请使用 admin token。
 
 ## 3. 首次部署
 
@@ -95,7 +111,8 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 
 ## 4. 安全基线
 
-- `APP_AUTH_TOKEN` 必填；更细粒度用 `APP_AUTH_TOKENS`（逗号分隔），限流按 token 分桶。
+- `APP_AUTH_TOKEN` 作为 admin bootstrap/监控 token；面向用户请用 `admin.py` 创建账号并签发 token。
+- 多用户按 `user_id` 做 thread 归属与每日配额；`/metrics`、`/api/audit` 仅 admin。
 - 所有研究/续跑/报告/metrics 接口都走 Bearer；`/healthz` 公开。
 - 报告 HTML 已做白名单清洗；抓取侧已做 SSRF 防护。
 - 请求体 64KB、主题 500 字、审核内容 5000 字上限；每 IP/ token 每分钟限流。
@@ -107,8 +124,8 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 
 ### SQLite 模式
 
-- 数据文件：`data/checkpoints.db`、`data/memory.db`（WAL）。
-- 每日备份：
+- 数据文件：`data/checkpoints.db`、`data/memory.db`、`data/auth.db`（WAL）。
+- 每日备份（SQLite 模式包含 `checkpoints.db`、`memory.db`、`auth.db`）：
 
 ```bash
 python maintenance.py backup --out backups
@@ -163,13 +180,14 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-
 1. LangGraph checkpointer 换 Postgres；
 2. memory 表迁移到 Postgres（含 `migrate-memory`）；
 3. 限流换 Redis；
-4. 指标计数接 Redis（日志仍按实例采集）。
+4. 指标计数接 Redis（日志仍按实例采集）；
+5. 账号/API token/RBAC/每日配额/审计（auth 表跟随 Postgres）。
 
 仍需：
 
-5. 多实例负载均衡 + SSE 超时配置；
-6. 多租户账号/RBAC/配额/审计；
-7. 加密备份/异地容灾、镜像扫描、WAF、值班/SLO。
+6. 多实例负载均衡 + SSE 超时配置；
+7. 加密备份/异地容灾、镜像扫描、WAF、值班/SLO；
+8. 语义级引用核验与提示词注入防护。
 
 ## 8. 发布与回滚
 

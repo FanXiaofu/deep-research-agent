@@ -123,10 +123,27 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
 - 结构化日志：默认 JSON 行输出到 stdout，含 `request_id` / `thread_id`；响应头透传 `X-Request-ID`，SSE 事件也带这两个 id，便于按一次请求/一轮研究检索日志
-- 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；可用 `APP_AUTH_TOKENS` 配置多个 token，限流按 token 分桶；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
-- 运行指标：`GET /metrics` 输出 Prometheus 文本；`/metrics.json` 输出 JSON 快照（请求计数 + research 状态）；需认证
+- 访问控制：所有研究/续跑/报告 API 要求 `Authorization: Bearer <token>`；支持环境变量静态 token（admin）与数据库账号 token（admin/user）。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
+- 账号与 RBAC：`admin.py` 创建用户、签发/禁用 token；user 只能访问自己发起的 thread，并受每日研究配额约束；admin 可看 `/metrics`、`/api/audit` 与任意 thread；研究开始/结束/续跑写审计事件
+- 运行指标：`GET /metrics` 输出 Prometheus 文本；`/metrics.json` 输出 JSON 快照（请求计数 + research 状态）；仅 admin
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
+
+### 账号与 token（P1.3）
+
+```bash
+python admin.py create-user --username alice --role user --daily-quota 20
+python admin.py issue-token --username alice --name laptop   # 明文只显示一次
+python admin.py list-tokens --username alice
+python admin.py disable-token --id 3
+python admin.py audit --limit 50
+```
+
+- 服务端只存 token 的 SHA-256，不存明文；用户用 `Authorization: Bearer <token>` 调用。
+- `user`：只能研究/续跑/读取自己发起的 thread，受每日配额约束；`admin`：跨 thread、`/metrics`、`/api/audit`。
+- 配额在“研究请求被接受”时消耗一次；续跑不重复消耗；失败的 run 也会计数（防刷）。
+- 静态 `APP_AUTH_TOKEN(S)` 继续可用，视为 admin，不计配额；适合监控/运维。
+- 账号库默认 `auth.db`（SQLite），配置 `DATABASE_URL` 后与 checkpoint/memory 共用 Postgres。
 
 ## Docker 部署
 
@@ -138,9 +155,9 @@ docker compose up -d
 
 本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像从 `requirements.lock` 安装，构建约 413MB，容器内 `/healthz` 已实测 200。
 
-> 公网部署前必须设置 `APP_AUTH_TOKEN`（足够长的随机值），并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
+> 公网部署前必须设置 `APP_AUTH_TOKEN`（admin bootstrap）或用 `admin.py` 创建账号并签发 token，并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置任何 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
 >
-> Docker 端口映射后，容器内看到的客户端 IP 不是回环地址；**本地 compose 也必须设置 `APP_AUTH_TOKEN`**，否则研究/续跑/指标接口会返回 403（`/healthz` 仍可用）。镜像以非 root 用户 `appuser`（UID 10001）运行；Linux 上挂载 `./data` 时需 `sudo chown -R 10001:10001 data`。
+> Docker 端口映射后，容器内看到的客户端 IP 不是回环地址；**本地 compose 也必须设置 `APP_AUTH_TOKEN` 或创建账号 token**，否则研究/续跑/指标接口会返回 403（`/healthz` 仍可用）。镜像以非 root 用户 `appuser`（UID 10001）运行；Linux 上挂载 `./data` 时需 `sudo chown -R 10001:10001 data`。
 
 ## CI 与可复现构建（E1）
 
@@ -240,9 +257,11 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `COMPACTION_ENABLED` / `COMPACT_TRIGGER_CHARS` / `COMPACT_TARGET_CHARS` | 笔记压缩开关、触发阈值、压缩后总字数目标 |
 | `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
 | `LOG_LEVEL` / `LOG_JSON` | 日志级别与格式；默认 `INFO` + JSON 行，本地想看可读文本设 `LOG_JSON=0` |
-| `APP_AUTH_TOKEN` | Bearer 访问令牌；留空仅允许本机回环，公网部署必须设置足够长的随机值 |
-| `APP_AUTH_TOKENS` | 多客户端 token，逗号分隔；与 `APP_AUTH_TOKEN` 合并，限流按 token 分桶 |
-| `APP_RATE_LIMIT_PER_MINUTE` | 单进程每 IP 每分钟研究/续跑请求上限（默认 30）；多 worker 需换共享限流 |
+| `APP_AUTH_TOKEN` | 静态 Bearer token（admin）；留空时允许本机回环或使用数据库账号 token |
+| `APP_AUTH_TOKENS` | 多个静态 admin token，逗号分隔；与 `APP_AUTH_TOKEN` 合并 |
+| `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |
+| `AUTH_DEFAULT_DAILY_QUOTA` | 新建用户的默认每日研究配额（默认 20；0=不限） |
+| `APP_RATE_LIMIT_PER_MINUTE` | 每 token/IP 每分钟研究/续跑请求上限（默认 30）；Redis 模式下跨实例共享 |
 | `APP_MAX_TOPIC_CHARS` / `APP_MAX_REVIEW_CHARS` | 研究主题与人工审核内容的长度上限 |
 | `APP_MAX_REQUEST_BYTES` | 单请求 Content-Length 上限（默认 64KB）；chunked 请求体需在反向代理层限制 |
 | `MAX_FETCH_BYTES` / `FETCH_MAX_REDIRECTS` | 单页最多读取字节数（默认 2MB）与最大重定向次数（默认 3） |
@@ -309,7 +328,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 158 个用例 + 5 个集成用例（3 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 164 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -359,7 +378,9 @@ python -m pytest tests -q     # 158 个用例 + 5 个集成用例（3 Postgres /
 - [x] **P1.1 Postgres 后端**：checkpoint/memory 支持 `DATABASE_URL`（SQLite fallback）；自动建表；`migrate-memory` 迁移研究档案；CI 增加 Postgres service job；compose 可选 Postgres profile
   - Postgres 集成测试 3 个通过；旧 checkpoint 不迁移，切换前需让在途任务完成
 - [x] **P1.2 Redis 共享状态**：`REDIS_URL` 启用 Redis 限流与指标聚合；Redis 故障回退进程内；CI 增加 redis service job；可选 compose profile
-  - Redis 集成测试 2 个；多实例仍需负载均衡、SSE 超时与账号/RBAC
+  - Redis 集成测试 2 个
+- [x] **P1.3 账号/RBAC/配额/审计**：`admin.py` 管理用户与 API token；user/admin 角色；thread 归属校验；每日研究配额；研究/续跑审计；`/metrics` 与 `/api/audit` 仅 admin
+  - 账号库跟随 SQLite/Postgres；静态 env token 仍兼容为 admin；多实例负载均衡与 SSE 超时待做
 
 ## 评测体系（W3）
 

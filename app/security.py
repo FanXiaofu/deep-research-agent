@@ -12,6 +12,7 @@ import time
 
 from fastapi import HTTPException, Request
 
+import auth
 import config
 
 try:
@@ -39,23 +40,49 @@ def configured_tokens() -> list[str]:
 
 def require_auth(request: Request) -> None:
     tokens = configured_tokens()
-    if tokens:
-        supplied = request.headers.get("authorization", "")
-        for token in tokens:
-            if hmac.compare_digest(supplied, f"Bearer {token}"):
-                token_id = hashlib.sha256(token.encode("utf-8")).hexdigest()[:8]
-                request.state.token_id = token_id
+    supplied = request.headers.get("authorization", "")
+
+    # 1) 环境变量 token（兼容旧部署，视为 admin）
+    for token in tokens:
+        if hmac.compare_digest(supplied, f"Bearer {token}"):
+            token_id = hashlib.sha256(token.encode("utf-8")).hexdigest()[:8]
+            request.state.token_id = token_id
+            request.state.principal = auth.Principal(
+                user_id="env", username="env", role="admin", daily_quota=0, token_id=token_id
+            )
+            return
+
+    # 2) 数据库 API token（账号体系）
+    if supplied.startswith("Bearer "):
+        raw = supplied.removeprefix("Bearer ").strip()
+        if raw:
+            try:
+                principal = auth.authenticate_token(raw)
+            except Exception as exc:
+                logger.exception(
+                    "auth_backend_failed",
+                    extra={"client": _client_host(request), "path": _client_path(request)},
+                )
+                raise HTTPException(status_code=503, detail="认证后端不可用") from exc
+            if principal is not None:
+                request.state.token_id = principal.token_id
+                request.state.principal = principal
                 return
+
+    if supplied or tokens:
         logger.warning(
             "auth_failed",
             extra={"client": _client_host(request), "path": _client_path(request)},
         )
         raise HTTPException(
             status_code=401,
-            detail="缺少或错误的访问令牌（Authorization: Bearer <APP_AUTH_TOKEN>）",
+            detail="缺少或错误的访问令牌（Authorization: Bearer <token>）",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if _client_host(request) in _LOOPBACK_HOSTS:
+        request.state.principal = auth.Principal(
+            user_id="local", username="local", role="admin", daily_quota=0
+        )
         return
     logger.warning(
         "auth_denied_no_token",
@@ -65,6 +92,14 @@ def require_auth(request: Request) -> None:
         status_code=403,
         detail="服务未配置 APP_AUTH_TOKEN，拒绝非本机访问",
     )
+
+
+def require_admin(request: Request) -> auth.Principal:
+    require_auth(request)
+    principal = getattr(request.state, "principal", None)
+    if principal is None or not principal.is_admin:
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return principal
 
 
 class RateLimiter:

@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **158 passed + 5 集成用例（3 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **164 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -209,8 +209,23 @@
   - 新增 `docker-compose.redis.yml` 可选 profile；CI 增加 redis service job；
   - README/production/runbook 补 Redis 部署与故障行为。
 - 验证：158 SQLite tests；2 Redis 集成用例用 fakeredis 验证限流 429、指标聚合与文本输出（本地 Docker engine 不稳定，真实 Redis 由 CI service 验证）。
-- 遗留：日志仍按实例采集；多实例负载均衡/SSE 超时、账号/RBAC 仍未做。
+- 遗留：日志仍按实例采集；账号/RBAC 随后由 P1.3 完成，多实例负载均衡/SSE 超时仍未做。
 - 提交：`2999f8e`。
+
+### P1.3 账号 / RBAC / 配额 / 审计
+
+- 目标：从“共享 token”升级到可区分用户、可限制额度、可追溯操作。
+- 改动：
+  - 新增 `auth.py`：users / api_tokens / thread_owners / usage_daily / audit_events 五张表；SQLite 与 Postgres 双后端；token 只存 SHA-256；
+  - 新增 `admin.py`：create-user / issue-token / list-users / list-tokens / disable-user / disable-token / audit / stats；
+  - `app/security.py`：静态 env token 保留为 admin；数据库 token 走账号；新增 `require_admin`；
+  - `app/main.py`：研究请求消耗每日配额并登记 thread 归属；resume/report 校验 owner；`/metrics`、`/api/audit` 仅 admin；研究开始/结束/续跑写审计；
+  - `maintenance.py backup` 纳入 `auth.db`；compose 数据卷增加 `AUTH_DB`；
+  - 配额使用 SQLite/Postgres 原子 upsert（`ON CONFLICT ... WHERE ... RETURNING`），多实例并发下不会超发；
+  - auth schema 初始化按数据库 URL 缓存，避免每个请求重复建表。
+- 验证：164 SQLite tests + 6 集成（4 Postgres / 2 Redis）；RBAC 403/200、thread 归属、配额耗尽、token 禁用、审计、CLI 冒烟均通过；Postgres job 新增 auth 往返与配额测试。
+- 遗留：账号是 token 型，没有浏览器登录/密码/找回；配额按自然日、失败 run 也计数；`require_auth` 每请求查一次 auth 库，用户量大时需缓存；多实例负载均衡未做。
+- 提交：本轮提交。
 
 ## 3. 路线状态
 
@@ -225,7 +240,8 @@
 | P0 单实例公网生产化 | 完成 | 多 token、Prometheus、CI runtime、Caddy/生产文档 |
 | P1.1 Postgres 存储 | 完成 | checkpoint/memory 可切 Postgres；SQLite fallback；迁移命令 |
 | P1.2 Redis 共享状态 | 完成 | 共享限流/指标；Redis 故障回退 |
-| P1.3 多租户/多实例 | 未开始 | 账号/RBAC/配额、负载均衡、SSE 超时、加密备份/镜像扫描 |
+| P1.3 账号/RBAC/配额/审计 | 完成 | 数据库 token、user/admin、thread 归属、每日配额、审计 |
+| P1.4 多实例/数据安全 | 未开始 | 负载均衡、SSE 超时、加密备份、镜像扫描、WAF |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -234,8 +250,7 @@
 - 独立强 judge 复评全量 20 题；
 - 真实 kill/restart 的 `--resume` 演示。
 
-**P1.3 架构阶段（当前 P1.2 明确不覆盖）：**
-- 多租户账号/RBAC/配额/审计；
+**P1.4 架构阶段（当前 P1.3 明确不覆盖）：**
 - 多实例负载均衡、SSE 超时、日志共享；
 - 语义级引用核验、提示词注入防护、内容安全；
 - 加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
@@ -250,7 +265,8 @@
 - [x] 多 token + Prometheus + CI runtime + Caddy/生产文档（P0）
 - [x] Postgres checkpoint/memory + 迁移 + CI postgres job（P1.1）
 - [x] Redis 共享限流/指标 + CI redis job（P1.2）
-- [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
+- [x] 账号/API token/RBAC/每日配额/审计（P1.3）
+- [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
 - [ ] `docker compose` 只发布 `127.0.0.1`；确认 Langfuse 管理面不对外

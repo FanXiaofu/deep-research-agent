@@ -1,8 +1,10 @@
 """P1.1：Postgres 存储后端（无 TEST_DATABASE_URL 时跳过）。"""
 import os
+import uuid
 
 import pytest
 
+import auth
 import config
 import memory
 from graph.build import make_checkpointer
@@ -47,6 +49,26 @@ def test_checkpointer_setup_on_postgres():
     assert saver is not None
     # setup() 已在 make_checkpointer 内执行；重复调用应保持幂等
     saver.setup()
+
+
+def test_auth_rbac_and_quota_on_postgres():
+    username = f"ci_{uuid.uuid4().hex[:8]}"
+    auth.create_user(username, role="user", daily_quota=1)
+    token, _ = auth.issue_token(username, name="ci")
+    principal = auth.authenticate_token(token)
+    assert principal is not None
+    assert principal.role == "user"
+    assert auth.consume_quota(principal) == (True, 0)
+    assert auth.consume_quota(principal) == (False, 0)
+
+    auth.claim_thread(principal, f"thread-{username}")
+    auth.assert_thread_access(principal, f"thread-{username}")
+    with pytest.raises(PermissionError):
+        auth.assert_thread_access(
+            auth.Principal("other", "other", "user", 1), f"thread-{username}"
+        )
+    auth.audit(principal.user_id, "ci_test", thread_id=f"thread-{username}")
+    assert any(e["action"] == "ci_test" for e in auth.list_audit(20))
 
 
 def test_sqlite_memory_can_migrate_to_postgres(tmp_path):

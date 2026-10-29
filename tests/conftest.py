@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import config  # noqa: E402
 import observability  # noqa: E402
 
 
@@ -15,3 +16,9 @@ import observability  # noqa: E402
 def _disable_langfuse(monkeypatch):
     """测试不依赖本地 Langfuse；否则 keys 已配置但服务未启动时会在退出阶段重试导出。"""
     monkeypatch.setattr(observability, "_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_auth_db(monkeypatch, tmp_path):
+    """每个测试用独立 auth.db，避免用户/配额/审计互相污染。"""
+    monkeypatch.setattr(config, "AUTH_DB", str(tmp_path / "auth.db"))

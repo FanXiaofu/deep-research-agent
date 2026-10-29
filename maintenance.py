@@ -142,10 +142,11 @@ def main() -> None:
     prune.add_argument("--days", type=float, help=f"保留天数（默认 {config.CHECKPOINT_RETENTION_DAYS}，0=不清理）")
     prune.add_argument("--db", help="checkpoint 库路径（默认 config.CHECKPOINT_DB）")
 
-    backup = sub.add_parser("backup", help="在线备份 checkpoint 与 memory 库")
+    backup = sub.add_parser("backup", help="在线备份 checkpoint、memory 与 auth 库")
     backup.add_argument("--out", default="backups", help="备份目录")
     backup.add_argument("--checkpoint-db", default=config.CHECKPOINT_DB)
     backup.add_argument("--memory-db", default=config.MEMORY_DB)
+    backup.add_argument("--auth-db", default=config.AUTH_DB)
 
     restore = sub.add_parser("restore", help="用备份覆盖目标库（会先做安全备份）")
     restore.add_argument("backup", help="备份文件路径")
@@ -183,7 +184,7 @@ def main() -> None:
 
     if args.command == "backup":
         backups = []
-        for source in (args.checkpoint_db, args.memory_db):
+        for source in (args.checkpoint_db, args.memory_db, args.auth_db):
             if Path(source).exists():
                 backups.append(str(backup_database(source, args.out)))
         print(json.dumps({"backups": backups}, ensure_ascii=False))

@@ -31,6 +31,9 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 # 多实例共享限流与指标；留空使用进程内实现
 REDIS_URL = os.getenv("REDIS_URL", "")
+# 账号/API token/审计库（DATABASE_URL 存在时复用 Postgres）
+AUTH_DB = os.getenv("AUTH_DB") or str(BASE_DIR / "auth.db")
+AUTH_DEFAULT_DAILY_QUOTA = int(os.getenv("AUTH_DEFAULT_DAILY_QUOTA", "20"))
 
 # ==== Checkpoint（断点恢复）====
 CHECKPOINT_DB = os.getenv("CHECKPOINT_DB", str(BASE_DIR / "checkpoints.db"))
@@ -223,6 +226,10 @@ def runtime_config_errors() -> list[str]:
         errors.append("DATABASE_URL 必须以 postgresql:// 或 postgres:// 开头")
     if REDIS_URL and not REDIS_URL.startswith(("redis://", "rediss://")):
         errors.append("REDIS_URL 必须以 redis:// 或 rediss:// 开头")
+    if AUTH_DEFAULT_DAILY_QUOTA < 0:
+        errors.append(
+            f"AUTH_DEFAULT_DAILY_QUOTA 不能为负数（当前 {AUTH_DEFAULT_DAILY_QUOTA}）"
+        )
     return errors
 
 

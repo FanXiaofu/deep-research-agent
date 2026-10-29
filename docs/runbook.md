@@ -6,12 +6,12 @@
 
 - 进程：单进程 uvicorn（SQLite 单写者；不要直接开多 worker）。
 - 入口：`POST /api/research/stream`、`POST /api/resume/stream`、`GET /api/report/{thread_id}`。
-- 鉴权：`Authorization: Bearer <APP_AUTH_TOKEN>`；可用 `APP_AUTH_TOKENS` 分发多个 token（限流按 token 分桶）；未配置 token 时只允许本机回环访问。
+- 鉴权：`Authorization: Bearer <token>`；静态 `APP_AUTH_TOKEN(S)` 为 admin，数据库账号 token 分 user/admin；user 只能访问自己的 thread 并受每日配额约束。
 - 日志：默认 JSON 行到 stdout，关键字段 `request_id` / `thread_id` / `level` / `message`。
-- 数据：默认 `checkpoints.db`（断点）与 `memory.db`（研究档案）；设置 `DATABASE_URL` 后两者都在 Postgres。
+- 数据：默认 `checkpoints.db`（断点）、`memory.db`（研究档案）、`auth.db`（账号/token/审计）；设置 `DATABASE_URL` 后都在 Postgres。
 - 共享状态：设置 `REDIS_URL` 后限流与指标计数在 Redis，多实例共享。
 - 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）。
-- 运行指标：`GET /metrics`（请求计数 + research 状态；需 token，本机回环可免）。
+- 运行指标：`GET /metrics`（请求计数 + research 状态；仅 admin，静态 admin token 或 admin 账号 token）。
 - 容器用户：`appuser`（UID 10001），非 root。
 
 ## 1. 发布前检查
@@ -94,7 +94,7 @@ python maintenance.py restore backups/<snapshot>.db --target checkpoints.db --ye
 ## 5. 备份与恢复
 
 ```bash
-# 备份（checkpoint + memory）
+# 备份（checkpoint + memory + auth）
 python maintenance.py backup --out backups
 
 # 清理过期 checkpoint（0=不清理）
@@ -142,12 +142,18 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-co
 ### 访问令牌
 
 ```bash
-# 生成新 token
+# 账号 token：签发新 token，确认客户端切换后禁用旧 token
+python admin.py issue-token --username alice --name laptop-2026q4
+python admin.py list-tokens --username alice
+python admin.py disable-token --id 3
+
+# 静态 admin token：生成新值后更新 .env 的 APP_AUTH_TOKEN 并重启
 python -c "import secrets; print(secrets.token_urlsafe(32))"
-# 更新 .env 的 APP_AUTH_TOKEN 后重启
 ```
 
-- 浏览器端需要重新输入新 token；旧 token 立即失效。
+- 数据库 token 不需要重启，`disable-token` 立即生效；浏览器端需要重新输入新 token。
+- 静态 token 轮换后旧值立即失效，需重启并重新输入。
+- 用户离职：`disable-user` 会同时让该用户所有 token 失效（认证 join 检查 users.active）。
 - 反向代理若也做鉴权，先更新代理配置再更新应用，避免中间窗口全断。
 
 ### LLM / 搜索 / Langfuse key
@@ -167,8 +173,9 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 ### 401 / 403
 
-- 401：`APP_AUTH_TOKEN` 已配置但请求头缺失/错误。检查 `Authorization: Bearer <token>`。
-- 403：token 未配置且请求不是本机回环。公网/反向代理场景必须配置 token。
+- 401：token 缺失/错误，或账号 token 已禁用。检查 `Authorization: Bearer <token>` 与 `admin.py list-tokens`。
+- 403：无权限（user 访问别人 thread、非 admin 访问 metrics/audit），或未配置 token 且请求不是本机回环。
+- 429：限流或每日研究配额用尽；配额可在 `admin.py list-users` 查看，次日重置。
 - 日志字段：`event=auth_failed` / `auth_denied_no_token`，含 `client` 与 `path`。
 
 ### 429
@@ -218,7 +225,7 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 
 - 容器 healthcheck + `/healthz` 探活；
 - `GET /metrics` 输出 Prometheus 文本（请求计数 + research started/finished/failed/active）；
-  配置 `REDIS_URL` 时从 Redis 汇总，多实例一致：
+  配置 `REDIS_URL` 时从 Redis 汇总，多实例一致；抓取需 admin token：
   `curl -H "Authorization: Bearer $APP_AUTH_TOKEN" http://127.0.0.1:8000/metrics`
 - `GET /metrics.json` 输出 JSON 快照，便于人工排查。
 - 日志按 `level=ERROR` 与 `request_id/thread_id` 聚合；
@@ -230,7 +237,7 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 
 - compose 只发布 `127.0.0.1`；公网必须放在反向代理/TLS 后面；
 - Docker 端口映射后客户端不是回环，本地 compose 也必须设置 `APP_AUTH_TOKEN`；
-- 多客户端用 `APP_AUTH_TOKENS` 分发不同 token；限流按 token 分桶，单进程内存实现；
+- 多用户用 `admin.py` 创建账号并签发 token；不要共用 admin token，审计和配额会混在一起；
 - 容器以 `appuser`（UID 10001）运行；Linux bind mount 需提前 chown；
 - 未配置 `APP_AUTH_TOKEN` 只允许回环；
 - 报告 HTML 经白名单清洗；抓取只允许公网 http/https；

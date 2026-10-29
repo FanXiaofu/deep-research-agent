@@ -23,6 +23,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
+import auth
 import config
 import logging_config
 import markdown as md_lib
@@ -251,7 +252,9 @@ def _report_event(state: dict, elapsed: float) -> str:
     })
 
 
-def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
+def _stream(
+    payload, cfg: dict, started: float, request_id: str | None = None, user_id: str | None = None
+):
     """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。
 
     图在独立 worker 线程里执行，事件经队列回到 SSE 生成器：sync 生成器可能被
@@ -293,6 +296,17 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
                         extra={"thread_id": run_id, "outcome": outcome},
                     )
                     metrics.research_finished(outcome)
+                    if user_id:
+                        try:
+                            auth.audit(
+                                user_id,
+                                "research_finished",
+                                detail=outcome,
+                                thread_id=run_id,
+                                request_id=request_id,
+                            )
+                        except Exception:
+                            logger.warning("audit_failed", extra={"thread_id": run_id})
                     events.put(("done", None))
 
     threading.Thread(target=worker, daemon=True).start()
@@ -343,19 +357,25 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
         run_context.discard_run(run_id)
 
 
-@app.get("/metrics", dependencies=[Depends(security.require_auth)])
+@app.get("/metrics", dependencies=[Depends(security.require_admin)])
 def metrics_endpoint():
-    """Prometheus 文本格式的运行指标。"""
+    """Prometheus 文本格式的运行指标（admin）。"""
     return PlainTextResponse(
         metrics.render(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 
-@app.get("/metrics.json", dependencies=[Depends(security.require_auth)])
+@app.get("/metrics.json", dependencies=[Depends(security.require_admin)])
 def metrics_json():
-    """便于 curl/人工排查的 JSON 快照。"""
+    """便于 curl/人工排查的 JSON 快照（admin）。"""
     return metrics.snapshot()
+
+
+@app.get("/api/audit", dependencies=[Depends(security.require_admin)])
+def audit_log(limit: int = 50):
+    """最近的管理/研究审计事件（admin）。"""
+    return {"events": auth.list_audit(max(1, min(limit, 200)))}
 
 
 @app.get("/healthz")
@@ -371,7 +391,9 @@ def healthz():
             "search_provider": config.SEARCH_PROVIDER,
             "memory_enabled": config.MEMORY_ENABLED,
             "langfuse_enabled": observability.is_enabled(),
-            "auth_required": bool(config.APP_AUTH_TOKEN.strip()),
+            "auth_required": bool(security.configured_tokens())
+            or Path(config.AUTH_DB).exists()
+            or bool(config.DATABASE_URL),
             "errors": errors,
         },
     )
@@ -392,7 +414,9 @@ def index(request: Request):
             "rounds_default": config.MAX_SEARCH_ROUNDS,
             "rounds_limit": config.MAX_SEARCH_ROUNDS_LIMIT,
             "max_llm_calls": config.MAX_LLM_CALLS,
-            "auth_required": bool(config.APP_AUTH_TOKEN.strip()),
+            "auth_required": bool(security.configured_tokens())
+            or Path(config.AUTH_DB).exists()
+            or bool(config.DATABASE_URL),
         },
     )
 
@@ -403,6 +427,7 @@ def index(request: Request):
 )
 def research_stream(payload: ResearchRequest, request: Request):
     request_id = logging_config.get_request_id()
+    principal = request.state.principal
     # 越界参数直接 400，而不是静默降级成空报告（rounds<=0 会让 researcher 一次都不检索）
     try:
         eff_sub, eff_rounds = config.validate_scale(payload.max_sub, payload.rounds)
@@ -413,6 +438,10 @@ def research_stream(payload: ResearchRequest, request: Request):
         list(config.REVIEW_POINTS) if payload.points is None
         else [p.strip() for p in payload.points if p.strip()]
     )
+    allowed, quota_remaining = auth.consume_quota(principal)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="今日研究额度已用完")
+
     tid = _new_thread_id()
     cfg = thread_config(tid)
     # 规模覆盖走 state，不改全局 config —— 否则同进程内并发请求会互相覆盖
@@ -424,6 +453,14 @@ def research_stream(payload: ResearchRequest, request: Request):
         "max_subquestions": eff_sub,
         "max_search_rounds": eff_rounds,
     }
+    auth.claim_thread(principal, tid)
+    auth.audit(
+        principal.user_id,
+        "research_start",
+        thread_id=tid,
+        request_id=request_id,
+        detail=payload.topic[:120],
+    )
     with run_context.run_scope(tid):
         USAGE.reset()       # 新 run 从零起算；并发请求各有独立上下文
         BUDGET.reset()
@@ -431,8 +468,16 @@ def research_stream(payload: ResearchRequest, request: Request):
     started = time.time()
 
     def gen():
-        yield sse({"type": "start", "thread_id": tid, "topic": payload.topic, "request_id": request_id})
-        yield from _stream(state, cfg, started, request_id=request_id)
+        yield sse({
+            "type": "start",
+            "thread_id": tid,
+            "topic": payload.topic,
+            "request_id": request_id,
+            "quota_remaining": quota_remaining,
+        })
+        yield from _stream(
+            state, cfg, started, request_id=request_id, user_id=principal.user_id
+        )
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
@@ -444,6 +489,17 @@ def research_stream(payload: ResearchRequest, request: Request):
 def resume_stream(payload: ResumeRequest, request: Request):
     """human-in-the-loop：value 为空表示确认原内容，非空表示整组替换（按当前中断的 kind 解释）。"""
     request_id = logging_config.get_request_id()
+    principal = request.state.principal
+    try:
+        auth.assert_thread_access(principal, payload.thread_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    auth.audit(
+        principal.user_id,
+        "research_resume",
+        thread_id=payload.thread_id,
+        request_id=request_id,
+    )
     cfg = thread_config(payload.thread_id)
     command = Command(resume=payload.value or "")
     with run_context.run_scope(payload.thread_id):
@@ -453,12 +509,19 @@ def resume_stream(payload: ResumeRequest, request: Request):
 
     def gen():
         yield sse({"type": "resume", "thread_id": payload.thread_id, "request_id": request_id})
-        yield from _stream(command, cfg, started, request_id=request_id)
+        yield from _stream(
+            command, cfg, started, request_id=request_id, user_id=principal.user_id
+        )
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
 @app.get("/api/report/{thread_id}", dependencies=[Depends(security.require_auth)])
-def get_report(thread_id: str = ApiPath(..., max_length=128)):
+def get_report(request: Request, thread_id: str = ApiPath(..., max_length=128)):
+    principal = request.state.principal
+    try:
+        auth.assert_thread_access(principal, thread_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     state = get_research_app().get_state({"configurable": {"thread_id": thread_id}}).values or {}
     return {"thread_id": thread_id, "report": state.get("report", "")}
