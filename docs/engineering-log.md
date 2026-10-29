@@ -27,11 +27,12 @@
 | `d5d5861` | P0：多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
 | `319693f` | P1.1：Postgres checkpoint/memory + 迁移 + CI postgres job |
 | `2999f8e` | P1.2：Redis 共享限流/指标 + CI redis job |
+| `f97a57e` | P1.3：账号/API token/RBAC/配额/审计 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `c55cfef`，tag `v0.1.0-audit-baseline` 已推送；P1.2 与本文档更新随后补推；
+- 远端 `main` 已包含到 `c38e75c`，tag `v0.1.0-audit-baseline` 已推送；P1.3 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -224,8 +225,8 @@
   - 配额使用 SQLite/Postgres 原子 upsert（`ON CONFLICT ... WHERE ... RETURNING`），多实例并发下不会超发；
   - auth schema 初始化按数据库 URL 缓存，避免每个请求重复建表。
 - 验证：164 SQLite tests + 6 集成（4 Postgres / 2 Redis）；RBAC 403/200、thread 归属、配额耗尽、token 禁用、审计、CLI 冒烟均通过；Postgres job 新增 auth 往返与配额测试。
-- 遗留：账号是 token 型，没有浏览器登录/密码/找回；配额按自然日、失败 run 也计数；`require_auth` 每请求查一次 auth 库，用户量大时需缓存；多实例负载均衡未做。
-- 提交：本轮提交。
+- 遗留：账号是 token 型，没有浏览器登录/密码/找回；配额按自然日、失败 run 也计数；`require_auth` 每请求查一次 auth 库，用户量大时需缓存；SQLite auth 表不会自动迁移到 Postgres；多实例负载均衡未做。
+- 提交：`f97a57e`。
 
 ## 3. 路线状态
 
