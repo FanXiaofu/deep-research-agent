@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **154 passed**
+- 验证基线：`python -m pytest tests -q` → **156 passed**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -23,11 +23,12 @@
 | `c1cc3a9` | R10：writer 出口引用/链接校验 |
 | `4daa6f6` | E2：结构化日志 + 运行手册 |
 | `2f732ba` | F1：可测量评测 + 单变量覆盖 |
+| `e73d3af` | D3：/metrics + 非 root 容器 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `9d2d677`，tag `v0.1.0-audit-baseline` 已推送；F1 与本文档更新随后补推；
+- 远端 `main` 已包含到 `9d2d677`，tag `v0.1.0-audit-baseline` 已推送；F1/D3 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -155,6 +156,20 @@
 - 遗留：历史 A/B 仍同时改了 4 个参数，不能替代单变量结论；真实单变量实验与独立强 judge 复评需要模型在线时补跑。
 - 提交：`2f732ba`。
 
+### D3 运行指标与非 root 容器
+
+- 目标：补齐可直接采集的运行指标，并降低容器权限。
+- 改动：
+  - 新增 `metrics.py`：请求计数、research started/finished/failed/active、outcome 分布；
+  - `GET /metrics` 返回 JSON（需认证，本机回环可免）；
+  - `_stream` worker 记录 research outcome；异常路径保持 failed；
+  - Dockerfile 改为 `appuser`（UID 10001）运行，`COPY --chown` + 数据目录 chown；
+  - Docker 无 token 启动写 warning（端口映射后客户端不是回环，接口会 403）；
+  - runbook/README 补充 Docker token、bind mount 权限与 metrics 采集命令。
+- 验证：156 tests；容器内 `id -u`=10001，`/healthz` 200，带 token 的 `/metrics` 返回请求计数与 research 状态；研究接口带 token 返回 400（参数校验），未带 token 按预期拒绝。
+- 遗留：metrics 为进程级 JSON，未接 Prometheus；多 worker 下计数各自独立。
+- 提交：`e73d3af`。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -162,11 +177,15 @@
 | A 基线/稳定 | 完成 | A1 |
 | B 正确性/隔离 | 完成 | B1 |
 | C 数据可靠性 | 完成 | C1 |
-| D 安全与运维 | 部分完成 | D1 应用层安全 + E2 日志/健康检查；指标（metrics）仍未做 |
+| D 安全与运维 | 完成 | D1 应用层安全 + E2 日志/健康检查 + D3 指标/非 root |
 | E 部署与交付 | 完成 | E1 依赖锁/CI/Docker；E2 日志与 runbook |
 | F 性能与质量 | 部分完成 | R10 引用校验 + F1 分位数/单变量工具；真实单变量批次待模型在线 |
 
-建议下一项：**D3 运行指标 + 非 root 容器**。日志、健康检查和 runbook 已有，但还缺少可直接采集的运行指标；容器目前仍以 root 运行。完成这两项后，A-F 的工程化基线就闭环；F1 的真实单变量批次等模型可用时再补，不伪造数字。
+工程化 A–F 基线已闭环。剩余未完成项只有需要真实模型/外部环境的验证，不建议在没有测量条件时编造数字：
+- F1 真实单变量 A/B（Ollama 在线时跑）；
+- 独立强 judge 复评全量 20 题；
+- 真实 kill/restart 的 `--resume` 演示；
+- 多 worker 共享限流（当前单进程足够）。
 
 ## 4. 部署检查清单（公网）
 
@@ -174,6 +193,7 @@
 - [x] writer 出口引用/链接校验（R10）
 - [x] 结构化日志 + 请求 ID + 升级/回滚 runbook（E2）
 - [x] 分位数/单变量评测工具 + 历史批次重算（F1）
+- [x] `/metrics` 运行指标 + 非 root 容器（D3）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
@@ -197,7 +217,7 @@
 - 引用后校验只做确定性剔除，不判断论断与来源的语义相关性；无引用/少引用的报告仍可能质量不足。
 - LLM judge 与研究共用同一模型时存在系统性偏差；对外数字需更强模型复评。
 - 评测 A/B 曾同时调整 4 个参数，0.82→1.00 不能单独归因于“代码生成引用编号”（baseline 已有注册表）；README 已修正口径。
-- 指标（metrics）、非 root 容器仍未做；CI 已在 GitHub Actions 实跑通过，日志与 runbook 已补齐。
+- 指标为进程级 JSON，未接 Prometheus；多 worker 下计数/限流各自独立；真实单变量 A/B 与独立强 judge 待模型在线时补。
 
 ## 6. 复现与验证
 
