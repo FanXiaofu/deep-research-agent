@@ -30,11 +30,12 @@
 | `f97a57e` | P1.3：账号/API token/RBAC/配额/审计 |
 | `c497805` | P1.4：多副本 + Caddy/nginx + `/readyz` + 日志聚合 |
 | `a49fe66` | P1.5：加密备份 + secret + CSP + Trivy/Dependabot |
+| `1c2fe02` | CI：Trivy 改为直接跑固定版本镜像 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `f906aba`，tag `v0.1.0-audit-baseline` 已推送；P1.4 已推送；
+- 远端 `main` 已包含到 `1c2fe02`，tag `v0.1.0-audit-baseline` 已推送；P1.4 / P1.5 已推送；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -256,7 +257,7 @@
   - CI 新增 `security` job（Trivy HIGH/CRITICAL，忽略无修复项）；新增 Dependabot（pip/Docker/Actions）；
   - 新增 `docs/security.md`，明确 WAF 应部署在 Cloudflare/云 WAF 层，仓库不内置 WAF。
 - 验证：173 SQLite tests；加密备份/错误 key/恢复/密钥文件/过期清理；静态资源与无 inline 断言；`node --check`；本地 CLI 加密备份→恢复往返。
-- 供应链验证：Trivy 首次扫描发现 5 个可修复 HIGH/CRITICAL（certifi、urllib3、jaraco.context、wheel），升级后重建镜像再扫退出码 0；setuptools 也升级以替换其 vendored 旧 wheel/jaraco。
+- 供应链验证：Trivy 首次扫描发现 5 个可修复 HIGH/CRITICAL（certifi、urllib3、jaraco.context、wheel），升级后重建镜像再扫退出码 0；setuptools 也升级以替换其 vendored 旧 wheel/jaraco；CI run #24 七个 job（含 security）全绿。
 - 遗留：无 WAF/Bot 管理、无 token 过期、无镜像签名、无主机运行时检测。
 - 提交：`a49fe66`。
 
