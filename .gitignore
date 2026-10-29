@@ -13,3 +13,4 @@ backups/
 eval/results/p17_*
 eval/results/p18_*
 eval/results/api_*
+eval/results/agent_*
