@@ -1,7 +1,7 @@
-# 生产化落地说明（P0 + P1：单实例公网服务 / Postgres + Redis + 账号/RBAC）
+# 生产化落地说明（P0 + P1：单实例/多副本公网服务 / Postgres + Redis + 账号/RBAC）
 
 本文定义当前项目“向真实生产过渡”的目标形态、已具备能力和仍未覆盖的部分。
-**当前目标是单实例或少量实例、低并发的公网服务，不是多租户 SaaS。**
+**当前目标是小规模多副本、低并发的公网服务，不是多租户 SaaS。**
 
 ## 1. 目标拓扑
 
@@ -59,7 +59,7 @@ docker compose -f docker-compose.yml \
 - `/metrics` 从 Redis 汇总，Prometheus 抓任一实例都是全局计数；
 - Redis 故障时自动回退进程内限流/指标并写 warning；
 - Redis 只存限流窗口与指标计数，不持久化研究数据；
-- 多实例仍需负载均衡与 SSE 超时，见第 7 节。
+- 多副本拓扑见 2.4 节。
 
 ## 2.3 账号 / RBAC / 配额 / 审计（P1.3）
 
@@ -76,6 +76,36 @@ python admin.py audit --limit 50
 - 研究开始消耗一次配额，续跑不重复消耗；审计记录 `research_start` / `research_finished` / `research_resume` 与 CLI 管理动作。
 - `AUTH_DB` 默认 `auth.db`；设置 `DATABASE_URL` 后 auth 表也在 Postgres。
 - 静态 `APP_AUTH_TOKEN(S)` 仍兼容，视为 admin；监控抓取 `/metrics` 请使用 admin token。
+
+## 2.4 多副本 / 负载均衡（P1.4）
+
+```bash
+export APP_DOMAIN=research.example.com
+export POSTGRES_PASSWORD='<random>'
+export REDIS_PASSWORD='<random>'
+docker compose -f docker-compose.prod.yml up -d --build --scale app=2
+```
+
+拓扑：
+
+```
+Caddy :80/:443（TLS、安全头、SSE flush）
+  │  reverse_proxy nginx:80
+  ▼
+nginx :80（Docker DNS resolver + upstream resolve）
+  ├─ app replica 1 :8000
+  └─ app replica 2 :8000
+        ├─ Postgres（checkpoint/memory/auth）
+        └─ Redis（限流/指标）
+```
+
+- nginx `resolver 127.0.0.11 valid=5s` + `upstream server app:8000 resolve`，扩缩容后自动发现副本；
+- Caddy `flush_interval -1` 保证 SSE 实时；`health_uri /readyz` 检查 nginx/后端链路；
+- uvicorn 120s graceful shutdown，compose `stop_grace_period: 150s`；
+- 研究流绑定单个副本，续跑从共享 Postgres checkpoint 恢复，不需要 sticky session；
+- app 不发布宿主机端口；Postgres/Redis 也不对外；
+- 扩缩容后若 nginx 未发现新副本，检查 `resolver`/重启 nginx；
+- 可选日志：`docker-compose.observability.yml`（Loki/Promtail/Grafana）；Promtail 需 Docker socket，仅受信主机。
 
 ## 3. 首次部署
 
@@ -97,9 +127,9 @@ curl -s http://127.0.0.1:8000/healthz
 
 Caddy 二选一：
 
-- **宿主机运行**：修改 `deploy/Caddyfile` 的 `app:8000` 为 `127.0.0.1:8000`，执行
-  `APP_DOMAIN=research.example.com caddy run --config deploy/Caddyfile`；
-- **compose 内运行**：把 Caddy 作为同网络服务，保留 `app:8000`，映射 80/443 与证书卷。
+- **宿主机运行**：执行
+  `APP_DOMAIN=research.example.com UPSTREAM=127.0.0.1:8000 caddy run --config deploy/Caddyfile`；
+- **compose 内运行**：用 `docker-compose.prod.yml`，Caddy 设置 `UPSTREAM=nginx:80`，由 nginx 发现 app 副本；映射 80/443 与证书卷。
 
 验证：
 
@@ -181,13 +211,15 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-
 2. memory 表迁移到 Postgres（含 `migrate-memory`）；
 3. 限流换 Redis；
 4. 指标计数接 Redis（日志仍按实例采集）；
-5. 账号/API token/RBAC/每日配额/审计（auth 表跟随 Postgres）。
+5. 账号/API token/RBAC/每日配额/审计（auth 表跟随 Postgres）；
+6. 多副本负载均衡、`/readyz` 健康检查、SSE 不缓冲、120s 优雅退出；
+7. 可选 Loki/Promtail/Grafana 日志聚合。
 
 仍需：
 
-6. 多实例负载均衡 + SSE 超时配置；
-7. 加密备份/异地容灾、镜像扫描、WAF、值班/SLO；
-8. 语义级引用核验与提示词注入防护。
+8. 加密备份/异地容灾、镜像扫描、WAF、值班/SLO；
+9. 语义级引用核验与提示词注入防护；
+10. 真实模型在线时的单变量 A/B、强 judge 复评与 kill/restart 演示。
 
 ## 8. 发布与回滚
 
@@ -199,7 +231,7 @@ git status --short          # 必须干净
 docker build -t deep-research-agent:<tag> .
 ```
 
-GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres`、`redis` 五个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres/redis 跑集成测试）。
+GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`compose` 六个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres/redis 跑集成测试；compose 校验生产 compose、Caddyfile 与 nginx）。
 
 发布步骤：
 

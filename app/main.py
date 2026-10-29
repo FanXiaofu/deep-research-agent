@@ -25,6 +25,7 @@ from pathlib import Path
 
 import auth
 import config
+import health
 import logging_config
 import markdown as md_lib
 import metrics
@@ -397,6 +398,13 @@ def healthz():
             "errors": errors,
         },
     )
+
+
+@app.get("/readyz")
+def readyz():
+    """就绪检查：数据库不可用时 503；Redis 故障标 degraded 但仍可服务。"""
+    body, status = health.readiness()
+    return JSONResponse(status_code=status, content=body)
 
 
 @app.get("/")

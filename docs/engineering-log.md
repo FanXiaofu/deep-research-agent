@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **164 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **166 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -225,8 +225,22 @@
   - 配额使用 SQLite/Postgres 原子 upsert（`ON CONFLICT ... WHERE ... RETURNING`），多实例并发下不会超发；
   - auth schema 初始化按数据库 URL 缓存，避免每个请求重复建表。
 - 验证：164 SQLite tests + 6 集成（4 Postgres / 2 Redis）；RBAC 403/200、thread 归属、配额耗尽、token 禁用、审计、CLI 冒烟均通过；Postgres job 新增 auth 往返与配额测试。
-- 遗留：账号是 token 型，没有浏览器登录/密码/找回；配额按自然日、失败 run 也计数；`require_auth` 每请求查一次 auth 库，用户量大时需缓存；SQLite auth 表不会自动迁移到 Postgres；多实例负载均衡未做。
+- 遗留：账号是 token 型，没有浏览器登录/密码/找回；配额按自然日、失败 run 也计数；`require_auth` 每请求查一次 auth 库，用户量大时需缓存；SQLite auth 表不会自动迁移到 Postgres。
 - 提交：`f97a57e`。
+
+### P1.4 多副本 / 负载均衡 / 日志聚合
+
+- 目标：从“单实例”推进到“多副本滚动发布”，同时保持 SSE 实时。
+- 改动：
+  - 新增 `docker-compose.prod.yml`：app 多副本（`--scale app=N`）、Caddy、nginx、Postgres、Redis；app 不发布宿主机端口；
+  - Caddy：`health_uri /readyz`、`flush_interval -1`、JSON 访问日志；nginx：Docker DNS `resolver` + `upstream resolve`，多副本轮询与被动故障转移；
+  - 新增 `/readyz`：检查 checkpoint/auth 数据库，Redis 故障标 degraded 但返回 200；
+  - Dockerfile：uvicorn `--timeout-graceful-shutdown 120`；compose `stop_grace_period: 150s`；
+  - 新增可选 `docker-compose.observability.yml`（Loki + Promtail + Grafana）与 `deploy/prometheus.example.yml`；
+  - CI 增加 `compose` job，校验生产 compose、Caddyfile 与 nginx。
+- 验证：166 SQLite tests（新增 2 个 `/readyz` 用例）；`caddy validate`、`nginx -t`、生产 compose config 通过；本地实际起 2 副本，nginx 将请求分发到两个 app；停掉 app-1 后 6 次请求仍全 200；扩到 3 副本后请求落到 3 个 app；Caddy 入口 `/readyz` 200。
+- 遗留：没有自动化压测/滚动发布、蓝绿/金丝雀；nginx 只有被动健康检查（无主动探测）；Loki 方案需要 Docker socket；没有 Prometheus/Grafana 自动拉起。
+- 提交：本轮提交。
 
 ## 3. 路线状态
 
@@ -242,7 +256,8 @@
 | P1.1 Postgres 存储 | 完成 | checkpoint/memory 可切 Postgres；SQLite fallback；迁移命令 |
 | P1.2 Redis 共享状态 | 完成 | 共享限流/指标；Redis 故障回退 |
 | P1.3 账号/RBAC/配额/审计 | 完成 | 数据库 token、user/admin、thread 归属、每日配额、审计 |
-| P1.4 多实例/数据安全 | 未开始 | 负载均衡、SSE 超时、加密备份、镜像扫描、WAF |
+| P1.4 多副本/负载均衡/日志 | 完成 | Caddy + nginx DNS 发现、/readyz、SSE 不缓冲、120s 优雅退出、可选 Loki |
+| P1.5 数据安全/AI 质量 | 未开始 | 加密备份/异地容灾、镜像扫描、WAF、语义引用核验、注入防护 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -251,10 +266,10 @@
 - 独立强 judge 复评全量 20 题；
 - 真实 kill/restart 的 `--resume` 演示。
 
-**P1.4 架构阶段（当前 P1.3 明确不覆盖）：**
-- 多实例负载均衡、SSE 超时、日志共享；
+**P1.5 架构阶段（当前 P1.4 明确不覆盖）：**
 - 语义级引用核验、提示词注入防护、内容安全；
-- 加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
+- 加密备份/异地容灾、镜像扫描/WAF、值班/SLO；
+- 自动化滚动发布、蓝绿/金丝雀与多副本压测。
 
 ## 4. 部署检查清单（公网）
 
@@ -267,6 +282,7 @@
 - [x] Postgres checkpoint/memory + 迁移 + CI postgres job（P1.1）
 - [x] Redis 共享限流/指标 + CI redis job（P1.2）
 - [x] 账号/API token/RBAC/每日配额/审计（P1.3）
+- [x] 多副本 compose + Caddy/nginx 负载均衡 + `/readyz` + 日志聚合蓝图（P1.4）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

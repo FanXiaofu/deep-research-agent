@@ -115,6 +115,27 @@ jobs:
       - name: Run Postgres storage tests
         run: python -m pytest tests/test_postgres_store.py -q
 
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose and Caddy configuration
+        env:
+          APP_DOMAIN: http://localhost:8080
+          POSTGRES_PASSWORD: ci-postgres
+          REDIS_PASSWORD: ci-redis
+        run: |
+          touch .env
+          docker compose -f docker-compose.prod.yml config >/dev/null
+          docker compose -f docker-compose.yml -f docker-compose.redis.yml config >/dev/null
+          docker run --rm -e APP_DOMAIN=http://localhost:8080 \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
+          docker run --rm \
+            -v "$PWD/deploy/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            nginx:1.27-alpine nginx -t
+
   redis:
     runs-on: ubuntu-latest
     services:

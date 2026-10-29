@@ -1,0 +1,16 @@
+# Prometheus 抓取示例（不是自动启动的 compose 服务）。
+# 在 compose 网络内运行时，DNS SD 会发现 app 的多个副本；
+# credentials 请替换为 admin token，不要提交真实值。
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: deep-research
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials: REPLACE_WITH_ADMIN_TOKEN
+    dns_sd_configs:
+      - names: ["app"]
+        type: A
+        port: 8000

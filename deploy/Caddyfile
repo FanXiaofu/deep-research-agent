@@ -1,29 +1,39 @@
-# 单实例公网部署示例：Caddy 负责 TLS + 反向代理。
-# 用法：
-#   1) DNS 把 APP_DOMAIN 指向本机；
-#   2) 若 Caddy 与 app 在同一个 compose 网络：APP_DOMAIN=research.example.com caddy run
-#   3) 若 Caddy 跑在宿主机、app 发布在 127.0.0.1:8000：把 app:8000 改成 127.0.0.1:8000
-# Caddy 会自动申请/续期证书；80/443 需要对外放行，8000 不要对公网开放。
+# TLS 边缘 / 反向代理示例。
+# 单实例：APP_DOMAIN=research.example.com，UPSTREAM 默认 app:8000；app 在 127.0.0.1 时用 UPSTREAM=127.0.0.1:8000。
+# 多实例：docker compose -f docker-compose.prod.yml up -d --scale app=2
+# 生产 compose 里 Caddy 的 UPSTREAM=nginx:80，由 nginx 做副本发现与负载均衡。
+# Caddy 自动申请/续期证书；80/443 对外放行，app 端口不对外。
+{
+	admin off
+}
 
 {$APP_DOMAIN} {
-    encode zstd gzip
+	encode zstd gzip
 
-    reverse_proxy app:8000 {
-        # SSE 需要立即刷出，不能等缓冲
-        flush_interval -1
-    }
+	# 单实例默认直连 app；多副本生产 compose 通过 UPSTREAM=nginx:80 交给 nginx 做 Docker DNS 服务发现。
+	reverse_proxy {$UPSTREAM:app:8000} {
+		# SSE 必须立即刷出；-1 关闭响应缓冲
+		flush_interval -1
+		# 检查入口链路；后端副本由 nginx 被动重试；/readyz 不检查 LLM/搜索，避免外部抖动
+		health_uri /readyz
+		health_interval 10s
+		health_timeout 3s
+		health_status 200
+		fail_duration 30s
+	}
 
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        Referrer-Policy "no-referrer"
-        # 页面使用内联 style/script；如果后续拆成外部静态文件，可去掉 unsafe-inline
-        Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
-    }
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# 页面使用内联 style/script；如果后续拆成外部静态文件，可去掉 unsafe-inline
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+	}
 
-    log {
-        output stdout
-        format console
-    }
+	log {
+		output stdout
+		# JSON 便于 Loki/Promtail 或云日志采集
+		format json
+	}
 }

@@ -1,0 +1,48 @@
+# 可选日志聚合：Loki + Promtail + Grafana。
+# 适用于单机/受信 Docker 主机；Promtail 需要挂 Docker socket（等同 root 权限），
+# 不要把该文件直接用于不可信共享主机。生产也可改用 Docker Loki logging driver
+# 或 Grafana Alloy/daemonset。
+#
+# 启动：
+#   docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up -d
+# Grafana: http://127.0.0.1:3001（默认 admin / 见 GRAFANA_PASSWORD）
+services:
+  loki:
+    image: grafana/loki:3.5.0
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./deploy/observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.5.0
+    restart: unless-stopped
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./deploy/observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-change-me}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/loki.yml:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - loki
+
+volumes:
+  loki_data:
+  grafana_data:

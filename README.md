@@ -120,7 +120,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 子问题上限 / 检索轮数可自由填写（不再是固定下拉），旁边实时提示"预计 ≈ N 次 LLM 调用"与是否超预算
 - 勾选"审核任务书"/"审核子问题"时，对应节点后暂停，可在网页上确认或整组改写后继续（interrupt → resume）
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
-- 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
+- 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；`GET /readyz` 检查 checkpoint/auth 数据库，Redis 故障标记 `degraded` 但仍返回 200，供入口健康检查与 nginx 被动重试
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
 - 结构化日志：默认 JSON 行输出到 stdout，含 `request_id` / `thread_id`；响应头透传 `X-Request-ID`，SSE 事件也带这两个 id，便于按一次请求/一轮研究检索日志
 - 访问控制：所有研究/续跑/报告 API 要求 `Authorization: Bearer <token>`；支持环境变量静态 token（admin）与数据库账号 token（admin/user）。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
@@ -162,7 +162,7 @@ docker compose up -d
 ## CI 与可复现构建（E1）
 
 - `requirements.lock`：86 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
-- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）、`redis`（共享限流/指标集成测试）。
+- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）、`redis`（共享限流/指标集成测试）、`compose`（生产 compose 与 Caddyfile/nginx 校验）。
 - `Dockerfile` 用 `requirements.lock` 安装，并内置 `/healthz` HEALTHCHECK。
 - 本地构建：`docker build -t deep-research-agent .`；国内网络可加 `--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`。
 
@@ -197,7 +197,32 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-co
 ```
 
 - Redis 只存限流窗口与指标计数，不落地研究数据；不需要持久卷。
-- 多实例仍需负载均衡、SSE 超时与账号/RBAC，见 `docs/production.md`。
+
+## 多实例部署（P1.4）
+
+```bash
+export APP_DOMAIN=research.example.com
+export POSTGRES_PASSWORD='<random>'
+export REDIS_PASSWORD='<random>'
+docker compose -f docker-compose.prod.yml up -d --build --scale app=2
+```
+
+- `app` 不发布宿主机端口，只挂 compose 内网；Caddy 负责 TLS/安全头/SSE 边缘，nginx 用 Docker DNS (`resolver ... valid=5s` + `upstream resolve`) 发现副本并分发。
+- Caddy 用 `/readyz` 检查入口链路；nginx 对后端 5xx/超时做被动重试，Docker DNS 每 5s 刷新副本列表；Redis 故障只标记 degraded。
+- SSE 使用 `flush_interval -1`，不会因代理缓冲变成“最后一次性返回”。
+- uvicorn `--timeout-graceful-shutdown 120`，compose `stop_grace_period: 150s`；滚动发布/停容器时给在途研究留收尾时间。
+- 研究流本身绑定单个副本；续跑可从任意副本读取 Postgres checkpoint，不需要 sticky session。
+- 扩缩容后若 nginx 未发现新副本，检查 `resolver`/重启 nginx 容器。
+- 本地 HTTP 验证：`APP_DOMAIN=http://localhost CADDY_HTTP_PORT=8080 ... up -d --scale app=2`，然后 `curl http://localhost:8080/healthz`。
+
+可选日志聚合（Loki + Promtail + Grafana）：
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up -d
+# Grafana http://127.0.0.1:3001
+```
+
+Promtail 需要挂 Docker socket（等同 root 权限），只适合受信主机；Prometheus 抓取示例见 `deploy/prometheus.example.yml`（admin token 手工替换）。
 
 ## 数据维护（C1）
 
@@ -328,7 +353,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 164 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 166 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -380,7 +405,9 @@ python -m pytest tests -q     # 164 个用例 + 6 个集成用例（4 Postgres /
 - [x] **P1.2 Redis 共享状态**：`REDIS_URL` 启用 Redis 限流与指标聚合；Redis 故障回退进程内；CI 增加 redis service job；可选 compose profile
   - Redis 集成测试 2 个
 - [x] **P1.3 账号/RBAC/配额/审计**：`admin.py` 管理用户与 API token；user/admin 角色；thread 归属校验；每日研究配额；研究/续跑审计；`/metrics` 与 `/api/audit` 仅 admin
-  - 账号库跟随 SQLite/Postgres；静态 env token 仍兼容为 admin；多实例负载均衡与 SSE 超时待做
+  - 账号库跟随 SQLite/Postgres；静态 env token 仍兼容为 admin
+- [x] **P1.4 多实例部署**：`docker-compose.prod.yml`（app 多副本 + Caddy + nginx + Postgres + Redis）；nginx Docker DNS 服务发现与被动故障转移；Caddy `/readyz` 健康检查 + `flush_interval -1`；uvicorn 120s 优雅退出；可选 Loki/Promtail/Grafana 日志聚合
+  - 单实例 compose 保持默认；多副本需要 `--scale app=2` 与共享 Postgres/Redis
 
 ## 评测体系（W3）
 

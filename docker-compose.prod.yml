@@ -1,0 +1,111 @@
+# 多实例生产拓扑（独立于本地 docker-compose.yml）：
+#   APP_DOMAIN=research.example.com POSTGRES_PASSWORD=... REDIS_PASSWORD=... \
+#     docker compose -f docker-compose.prod.yml up -d --build --scale app=2
+#
+# 拓扑：Caddy（TLS/安全头/SSE 边缘）→ nginx（Docker DNS 服务发现 + 多副本负载均衡）→ app。
+# app 不发布端口，只挂在 compose 内网；Postgres/Redis 也不暴露到宿主机。
+#
+# 本地 HTTP 验证可临时：
+#   APP_DOMAIN=http://localhost CADDY_HTTP_PORT=8080 ... up -d --scale app=2
+#   curl http://localhost:8080/healthz
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    # 多实例共享 Postgres / Redis；显式覆盖 .env 里的本地地址
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/deep_research
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # 大于 uvicorn 的 120s graceful shutdown，避免在途 SSE 被 Docker 提前杀掉
+    stop_grace_period: 150s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    deploy:
+      replicas: 2
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      app:
+        condition: service_started
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      UPSTREAM: nginx:80
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      nginx:
+        condition: service_started
+    logging: *default-logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: deep_research
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d deep_research"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "no"
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *default-logging
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

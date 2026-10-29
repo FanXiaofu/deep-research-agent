@@ -4,13 +4,14 @@
 
 ## 0. 关键约定
 
-- 进程：单进程 uvicorn（SQLite 单写者；不要直接开多 worker）。
+- 进程：每个容器 1 个 uvicorn；水平扩展用多副本（`--scale app=N`），不要在一个容器里开多 worker（SQLite 模式尤其如此）。
 - 入口：`POST /api/research/stream`、`POST /api/resume/stream`、`GET /api/report/{thread_id}`。
 - 鉴权：`Authorization: Bearer <token>`；静态 `APP_AUTH_TOKEN(S)` 为 admin，数据库账号 token 分 user/admin；user 只能访问自己的 thread 并受每日配额约束。
 - 日志：默认 JSON 行到 stdout，关键字段 `request_id` / `thread_id` / `level` / `message`。
 - 数据：默认 `checkpoints.db`（断点）、`memory.db`（研究档案）、`auth.db`（账号/token/审计）；设置 `DATABASE_URL` 后都在 Postgres。
 - 共享状态：设置 `REDIS_URL` 后限流与指标计数在 Redis，多实例共享。
-- 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）。
+- 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）；`GET /readyz` 检查数据库，Redis 故障标记 degraded。
+- 多副本：`docker-compose.prod.yml` 中 app 不发布端口；Caddy 负责 TLS/安全头，nginx 通过 Docker DNS 发现 app 副本并分发；研究流绑单副本，续跑从共享 checkpoint 恢复。
 - 运行指标：`GET /metrics`（请求计数 + research 状态；仅 admin，静态 admin token 或 admin 账号 token）。
 - 容器用户：`appuser`（UID 10001），非 root。
 
@@ -22,7 +23,7 @@ git status --short                   # 必须干净
 docker build -t deep-research-agent:$(git rev-parse --short HEAD) .
 ```
 
-- CI（`.github/workflows/ci.yml`）必须通过 `test` 与 `docker` 两个 job。
+- CI（`.github/workflows/ci.yml`）必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`compose` 六个 job。
 - 生产 `.env` 必须设置：`APP_AUTH_TOKEN`、LLM key、搜索 key。
 - 升级前先备份：
 
@@ -221,7 +222,43 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 - 熔断后会在冷却期内短路；`BREAKER_COOLDOWN_S` 后可恢复。
 - 报告仍会生成，但会标注研究受限。
 
-## 8. 监控建议
+## 8. 多副本与日志聚合（P1.4）
+
+```bash
+# 启动 3 个 app 副本 + Caddy + Postgres + Redis
+export APP_DOMAIN=research.example.com
+export POSTGRES_PASSWORD='<random>'
+export REDIS_PASSWORD='<random>'
+docker compose -f docker-compose.prod.yml up -d --build --scale app=3
+
+# 本地无域名时：APP_DOMAIN=http://localhost CADDY_HTTP_PORT=8080 \
+#   docker compose -f docker-compose.prod.yml up -d --build --scale app=3
+#   curl http://localhost:8080/healthz
+
+# 通过 Caddy（80/443）验证
+curl -s https://research.example.com/healthz
+curl -s https://research.example.com/readyz
+```
+
+- app 不发布宿主机端口；`docker compose ps` 应看到多个 app 副本。
+- Caddy 每 10s 检查入口 `/readyz`；nginx 对失败后端被动重试，Docker DNS 每 5s 刷新副本列表。
+- 扩容/缩容后若 nginx 未发现新副本，检查 `resolver`/重启 nginx。
+- 停止副本时会等待最多 120s（uvicorn）+ 30s 缓冲（stop_grace_period 150s），在途 SSE 尽量收尾。
+- 研究流本身不跨副本；续跑请求可以落到任意副本，因为 checkpoint 在 Postgres。
+
+可选日志聚合：
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up -d
+# Grafana: http://127.0.0.1:3001
+```
+
+- Loki 只绑 `127.0.0.1:3100`；Promtail 需要 Docker socket，等同 root 权限，只用于受信主机。
+- Promtail 从容器 stdout 收集 JSON 日志，`service`/`container` label 可用于过滤。
+- Prometheus 抓取示例在 `deploy/prometheus.example.yml`；把 `REPLACE_WITH_ADMIN_TOKEN` 换成 admin token，使用 DNS SD 发现 `app` 的多个副本。
+- 若日志量/主机数上来，改用 Docker Loki logging driver、Alloy 或云日志，不要长期把 Docker socket 暴露给容器。
+
+## 9. 监控建议
 
 - 容器 healthcheck + `/healthz` 探活；
 - `GET /metrics` 输出 Prometheus 文本（请求计数 + research started/finished/failed/active）；
