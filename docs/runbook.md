@@ -193,6 +193,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 - 默认只做零成本词面审计；设置 `GROUNDING_JUDGE_MODEL` 后追加语义 judge，每轮最多 `GROUNDING_MAX_CLAIMS` 条，计入 LLM 预算/成本。
 - 语义 judge 使用独立模型时，注意它和研究模型的相关性；不要把分数当绝对真值。
 - 网页内容统一视为不可信数据；若发现注入迹象，先停用相关来源并人工复核报告。
+- 可选 `SAFETY_JUDGE_MODEL` 会追加“内容安全审计”（low/medium/high），默认关闭；高风险结果必须人工处理，不能视为合规结论。
 
 ## 8. 故障排查
 

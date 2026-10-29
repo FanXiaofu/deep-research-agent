@@ -86,6 +86,7 @@ python maintenance.py prune-backups --days 30
 - 内容里的同名闭合标签会被中和，避免提前截断隔离块；
 - 报告出口按引用句做词面覆盖/数字一致性审计；`GROUNDING_JUDGE_MODEL` 非空时追加语义 judge（supported/partial/unsupported）；
 - 审计结果写进报告“证据支撑审计”章节，不删改结论；词面覆盖/模型判定都不是事实裁决；
+- 可选 `SAFETY_JUDGE_MODEL` 对报告做内容安全风险审计（low/medium/high），默认关闭；它不是合规分类器，高风险必须人工处理；
 - 这只能降低注入成功率，不能证明网页内容无害；仍需要人工复核和 WAF/内容安全策略。
 
 ## 7. 数据与日志
@@ -104,5 +105,5 @@ python maintenance.py prune-backups --days 30
 - 没有 secret manager 集成代码，只支持挂文件。
 - 没有镜像签名/证明（cosign/SLSA）；只有漏洞扫描与依赖更新。
 - 没有主机/运行时入侵检测（Falco/auditd）。
-- 没有真实模型在线时的 prompt injection / 内容安全专项测试；当前只有标签隔离、提示词边界和审计信号。
-- 没有内容安全分类器/审核策略；是否允许某类研究主题需由产品策略决定。
+- 真实模型只跑过 1 题 smoke（见 `docs/eval-p17-smoke.md`），没有 prompt injection / 内容安全专项测试集。
+- 内容安全只有可选模型审计钩子，没有合规分类器、审核队列或自动拦截策略；是否允许某类研究主题需由产品策略决定。

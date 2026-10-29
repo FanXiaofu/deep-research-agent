@@ -8,26 +8,25 @@ import json
 import re
 
 import config
-from citations import extract_citations
+from citations import CITE_RE, extract_citations, strip_reference_section
 from llm.client import chat_json_safe
 from untrusted import GUARD, wrap
 
-_REFERENCE_SECTION = re.compile(r"\n##\s*参考来源\b.*\Z", re.S)
-_SENTENCE = re.compile(r"[^。！？!?；;\n]+[。！？!?；;]?")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?%?")
 _WORD = re.compile(r"[a-z0-9][a-z0-9._%+-]*")
 _CJK = re.compile(r"[\u4e00-\u9fff]")
 
 
-def _strip_references(report: str) -> str:
-    return _REFERENCE_SECTION.sub("", report)
-
-
 def _claims(report: str, limit: int) -> list[str]:
+    # 引用常写成“句子。[1][2]”，按句号切分会把 [1][2] 单独切成一条假论断；
+    # 因此按行/段落提取，保留“论断 + 句末引用”的完整上下文。
     claims: list[str] = []
-    for match in _SENTENCE.finditer(_strip_references(report)):
-        text = match.group(0).strip()
-        if not text or text.startswith("#") or not extract_citations(text):
+    for block in re.split(r"\n+", strip_reference_section(report)):
+        text = block.strip()
+        if not text or text.startswith("#"):
+            continue
+        text = re.sub(r"^(?:[-*]|\d+\.)\s+", "", text)
+        if not text or not extract_citations(text):
             continue
         claims.append(text)
         if len(claims) >= limit:
@@ -53,10 +52,12 @@ def _evidence(claim: str, sources: dict) -> str:
 
 def _lexical_result(claim: str, sources: dict) -> dict:
     evidence = _evidence(claim, sources)
-    claim_tokens = _tokens(claim)
+    # 引用编号 [1, 3] 不是事实数字，先剔除再比 token/数字
+    content = CITE_RE.sub("", claim)
+    claim_tokens = _tokens(content)
     overlap = claim_tokens & _tokens(evidence)
     score = len(overlap) / max(1, len(claim_tokens))
-    claim_nums = set(_NUMBER.findall(claim))
+    claim_nums = set(_NUMBER.findall(content))
     evidence_nums = set(_NUMBER.findall(evidence))
     numeric_mismatch = bool(claim_nums and not claim_nums <= evidence_nums)
     return {

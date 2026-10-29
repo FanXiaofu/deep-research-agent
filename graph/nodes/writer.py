@@ -12,7 +12,8 @@ W5 加固：
 import config
 import grounding
 import reliability
-from citations import validate_report
+import safety
+from citations import strip_reference_section, validate_report
 from graph.state import ResearchState, effective_notes
 from llm.client import chat_safe
 from untrusted import GUARD
@@ -61,7 +62,8 @@ def _strip_preamble(text: str) -> str:
     """兜底：小模型偶尔在正文前先"自言自语"（推理泄露），从第一个 Markdown 标题行截断。"""
     lines = text.splitlines()
     for i, line in enumerate(lines):
-        if line.startswith("#"):
+        # 只认一级标题；否则正文没有 H1、但带“## 参考来源”时会从参考来源处截断
+        if line.startswith("# "):
             return "\n".join(lines[i:]).strip()
     return text.strip()
 
@@ -139,6 +141,7 @@ def writer(state: ResearchState) -> dict:
             "report": f"{body}\n{tail}\n" if tail else body,
             "citation_audit": {"invalid_citations": 0, "unknown_links": 0},
             "grounding_audit": {},
+            "safety_audit": {},
         }
 
     registry, ordered = _build_registry(notes)
@@ -175,6 +178,9 @@ def writer(state: ResearchState) -> dict:
     )
     if not report:
         report = _fallback_report(state, notes)
+    # 小模型可能无视“不要输出参考来源”的指令；统一剥离，避免出现两份来源清单，
+    # 也保证后面的引用/证据审计覆盖完整正文。
+    report = strip_reference_section(report)
 
     # 模型可能输出越界编号或不在来源清单里的链接，出口做一次确定性校验
     report, audit = validate_report(report, registry.keys(), len(ordered))
@@ -187,11 +193,15 @@ def writer(state: ResearchState) -> dict:
 
     sources_by_ref = {registry[s["url"]]: s for s in ordered}
     grounding_audit = grounding.audit_report(report, sources_by_ref)
+    safety_audit = safety.audit_report(report, state["topic"])
     audit_section = _citation_audit_section(audit)
     grounding_section = grounding.format_section(grounding_audit)
+    safety_section = safety.format_section(safety_audit)
     limitation = _limitation_section(state)
     tail = "\n".join(
-        x for x in (audit_section, grounding_section, limitation, memory_note) if x
+        x for x in (
+            audit_section, grounding_section, safety_section, limitation, memory_note
+        ) if x
     )
     if tail:
         report = f"{report}\n{tail}\n"
@@ -204,4 +214,5 @@ def writer(state: ResearchState) -> dict:
         "report": report,
         "citation_audit": audit,
         "grounding_audit": grounding_audit,
+        "safety_audit": safety_audit,
     }

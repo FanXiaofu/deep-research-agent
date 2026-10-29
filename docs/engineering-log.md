@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **180 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **182 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -276,6 +276,18 @@
 - 遗留：没有真实模型在线的语义 judge 复评；词面覆盖不是事实裁决；没有内容安全分类器/审核策略；真实 kill/restart 与 A/B 仍未执行。
 - 提交：`58b2191`。
 
+### P1.7 真实模型 smoke / 内容安全钩子
+
+- 目标：不再只用 mock；用真实 Ollama 跑一轮，暴露报告出口问题；补可选内容安全审计。
+- 真实评测（`docs/eval-p17-smoke.md`）：1 题、2 子问题、1 轮、memory off，`qwen2.5:7b-instruct` 同时做研究/judge；faithfulness 4/5、citation_validity 1.0、source_utilization 0.75、37 引用/8 来源、6 次 LLM、6474/1493 tokens、195.1s、估价 $0.0034（本机实际 0）、grounding 7 句/1 低覆盖。
+- 真实评测发现并修复：
+  - 引用标记 `[1][4]` 被按句切开当成假论断 → 按行/段落提取，并剔除引用编号再比数字；
+  - 模型自造 `## 参考来源` / `--- [n1]` 来源清单 → 统一剥离，只保留代码生成的一份；
+  - 正文无 H1 时 `_strip_preamble` 从 `## 参考来源` 截断 → 只认 `# ` 一级标题。
+- 内容安全：新增可选 `SAFETY_JUDGE_MODEL`，对报告输出 low/medium/high 风险审计；默认关闭，不自动拦截，不是合规分类器。
+- 验证：182 SQLite tests；真实 smoke 结果与修复记录；CI 待本轮推送确认。
+- 遗留：judge 与研究模型相同，不是独立强 judge；只跑 1 题；没有 kill/restart 真实演示；没有内容安全审核队列/自动拦截；没有全量 20 题和真实单变量 A/B。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -293,7 +305,7 @@
 | P1.4 多副本/负载均衡/日志 | 完成 | Caddy + nginx DNS 发现、/readyz、SSE 不缓冲、120s 优雅退出、可选 Loki |
 | P1.5 数据安全/供应链/CSP | 完成 | 加密备份、secret 文件、Trivy/Dependabot、CSP 去 inline、边缘请求体限制 |
 | P1.6 证据支撑/prompt injection | 完成 | 不可信内容包裹、词面/数字审计、可选语义 judge |
-| P1.7 内容安全/真实评测 | 未开始 | 内容政策、真实模型 A/B、强 judge、kill/restart |
+| P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计；全量/独立 judge/kill-restart 未做 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -322,6 +334,7 @@
 - [x] 多副本 compose + Caddy/nginx 负载均衡 + `/readyz` + 日志聚合蓝图（P1.4）
 - [x] 加密备份 + secret 文件 + Trivy/Dependabot + CSP 去 inline（P1.5）
 - [x] 证据支撑审计 + 网页不可信包裹（P1.6）
+- [x] 真实模型 1 题 smoke + 可选内容安全审计（P1.7）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

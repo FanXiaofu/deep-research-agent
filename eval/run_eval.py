@@ -203,6 +203,7 @@ def run_question(app, q: dict, tag: str, out_dir: Path,
                     "memory_written": final.get("memory_written", 0),
                     "citation_audit": final.get("citation_audit", {}),
                     "grounding_audit": final.get("grounding_audit", {}),
+                    "safety_audit": final.get("safety_audit", {}),
                     "degradations": reliability.degradations(),
                     "n_notes_raw": len(notes),
                     "n_notes_evidence": len(evidence),
@@ -251,6 +252,7 @@ def run_question(app, q: dict, tag: str, out_dir: Path,
                 "grounding_semantic_unsupported": int(
                     ((final.get("grounding_audit") or {}).get("semantic") or {}).get("unsupported", 0) or 0
                 ),
+                "safety_risk": (final.get("safety_audit") or {}).get("risk", ""),
                 "n_degradations": len(reliability.degradations()),
             }
         )

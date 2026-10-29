@@ -134,6 +134,8 @@ GROUNDING_AUDIT_ENABLED = os.getenv("GROUNDING_AUDIT_ENABLED", "1") == "1"
 GROUNDING_JUDGE_MODEL = os.getenv("GROUNDING_JUDGE_MODEL", "")
 GROUNDING_MAX_CLAIMS = int(os.getenv("GROUNDING_MAX_CLAIMS", "8"))
 GROUNDING_LEXICAL_THRESHOLD = float(os.getenv("GROUNDING_LEXICAL_THRESHOLD", "0.15"))
+# 可选内容安全审计；留空关闭，避免每轮额外调用
+SAFETY_JUDGE_MODEL = os.getenv("SAFETY_JUDGE_MODEL", "")
 
 # ==== 成本估算（USD / 1M tokens；ollama 本地模型时成本为 0，价格仅用于估算展示）====
 LLM_PRICE_INPUT_PER_M = float(os.getenv("LLM_PRICE_INPUT_PER_M", "0.27"))

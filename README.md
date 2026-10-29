@@ -249,7 +249,7 @@ python maintenance.py restore backups/checkpoints-...db.fernet --target checkpoi
 - Docker 的 `./data` 卷同时保存 `checkpoints.db`、`memory.db`、`auth.db`；容器重建不会丢研究档案。
 - `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints` 与 `prune-backups`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；安全边界与 WAF/secret/备份要求见 [docs/security.md](docs/security.md)；部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；安全边界与 WAF/secret/备份要求见 [docs/security.md](docs/security.md)；真实模型 smoke 结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
 
 ## Langfuse 全链路追踪
 
@@ -298,6 +298,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `<NAME>_FILE` | 敏感配置从文件读取（Docker/K8s secret），优先于同名环境变量；支持 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key |
 | `GROUNDING_AUDIT_ENABLED` / `GROUNDING_LEXICAL_THRESHOLD` | 是否在报告出口做证据支撑审计，以及词面覆盖阈值（默认开 / 0.15） |
 | `GROUNDING_JUDGE_MODEL` / `GROUNDING_MAX_CLAIMS` | 语义 judge 模型（留空只用词面审计）与最多核查句数（默认 8） |
+| `SAFETY_JUDGE_MODEL` | 可选内容安全 judge；留空关闭。只追加风险审计，不是合规分类器 |
 | `BACKUP_ENCRYPTION_KEY` | 备份 Fernet key；`maintenance.py backup --encrypt` 使用 |
 | `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |
 | `AUTH_DEFAULT_DAILY_QUOTA` | 新建用户的默认每日研究配额（默认 20；0=不限） |
@@ -368,7 +369,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 180 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 182 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -427,6 +428,8 @@ python -m pytest tests -q     # 180 个用例 + 6 个集成用例（4 Postgres /
   - 仍无内置 WAF、token 过期、镜像签名；WAF 建议部署在 Cloudflare/云 WAF 层
 - [x] **P1.6 证据支撑 / prompt injection**：网页内容用不可信标签包裹并在提示词声明边界；报告出口做引用句词面覆盖/数字一致性审计；可选语义 judge（默认关闭，避免额外成本）
   - 内容安全政策、真实模型在线 A/B、kill/restart 复跑仍未完成；语义 judge 分数只作审计信号
+- [x] **P1.7 真实 smoke / 内容安全钩子**：本地 Ollama `qwen2.5:7b-instruct` 跑 1 题真实评测；修复引用标记误判、模型自造来源、无 H1 截断；新增可选 `SAFETY_JUDGE_MODEL` 内容安全审计（默认关闭）
+  - 真实结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；judge 与研究模型相同，不是独立强 judge
 
 ## 评测体系（W3）
 

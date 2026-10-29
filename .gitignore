@@ -10,3 +10,4 @@ logs/
 .last_thread
 data/
 backups/
+eval/results/p17_*

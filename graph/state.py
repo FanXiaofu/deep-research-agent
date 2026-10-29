@@ -60,6 +60,7 @@ class ResearchState(TypedDict):
     memory_written: int             # 本轮落档到研究档案的笔记条数
     citation_audit: dict            # writer 出口引用校验：越界引用/未知链接的移除计数
     grounding_audit: dict           # 证据支撑审计（词面覆盖 + 可选语义 judge）
+    safety_audit: dict              # 可选内容安全审计（未配置 judge 时为空）
     report: str                     # writer 最终报告（Markdown）
 
 

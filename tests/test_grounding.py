@@ -57,7 +57,13 @@ def test_grounding_can_be_disabled(monkeypatch):
 def test_writer_appends_grounding_audit(monkeypatch):
     monkeypatch.setattr(config, "GROUNDING_AUDIT_ENABLED", True)
     monkeypatch.setattr(config, "GROUNDING_JUDGE_MODEL", "")
-    monkeypatch.setattr(writer, "chat_safe", lambda *args, **kwargs: "苹果富含维生素C [1]。")
+    monkeypatch.setattr(
+        writer,
+        "chat_safe",
+        lambda *args, **kwargs: (
+            "苹果富含维生素C [1]。\n\n---\n\n[n1] 模型自己编的来源 - https://fake"
+        ),
+    )
     state = {
         "topic": "水果",
         "notes": [{
@@ -73,4 +79,5 @@ def test_writer_appends_grounding_audit(monkeypatch):
     out = writer.writer(state)
     assert out["grounding_audit"]["claims"] == 1
     assert "## 证据支撑审计" in out["report"]
-    assert "## 参考来源" in out["report"]
+    assert out["report"].count("## 参考来源") == 1
+    assert "模型自己编的来源" not in out["report"]

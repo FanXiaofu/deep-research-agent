@@ -9,6 +9,15 @@ import re
 # 与 eval/judge.py 共用同一口径：两位以内、支持 [2, 6] 与中文逗号 [2，6]
 CITE_RE = re.compile(r"\[(\d{1,2}(?:\s*[,，]\s*\d{1,2})*)\]")
 LINK_RE = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)\s]+)\)")
+REFERENCE_SECTION_RE = re.compile(
+    r"\n##\s*(?:参考来源|参考资料|参考文献|references)\b.*\Z", re.I | re.S
+)
+TRAILING_REFS_RE = re.compile(r"\n(?:-{3,}\s*\n+)?(?:\[\w+\][^\n]*\n?)+\Z", re.S)
+
+
+def strip_reference_section(text: str) -> str:
+    """删除模型自行输出的参考来源章节；最终来源清单只由代码追加。"""
+    return TRAILING_REFS_RE.sub("", REFERENCE_SECTION_RE.sub("", text)).rstrip()
 
 
 def extract_citations(text: str) -> list[int]:
