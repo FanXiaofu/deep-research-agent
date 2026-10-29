@@ -11,6 +11,7 @@ W5 加固：
 """
 import config
 import reliability
+from citations import validate_report
 from graph.state import ResearchState, effective_notes
 from llm.client import chat_safe
 
@@ -71,7 +72,8 @@ def _fallback_report(state: ResearchState, notes: list[dict]) -> str:
 def _limitation_section(state: ResearchState) -> str:
     """降级如实披露：预算受限/依赖降级都要写进报告，不能对外表现为"正常完成"。"""
     reason = state.get("budget_exceeded") or ""
-    events = reliability.degradations()
+    # 引用校验有独立的说明节，避免和"依赖降级"重复展示
+    events = [ev for ev in reliability.degradations() if ev["component"] != "citation"]
     if not reason and not events:
         return ""
     lines = ["", "## 研究受限说明", ""]
@@ -107,15 +109,28 @@ def _memory_section(state: ResearchState) -> str:
     return "\n".join(lines)
 
 
+def _citation_audit_section(audit: dict) -> str:
+    invalid = int(audit.get("invalid_citations", 0) or 0)
+    unknown = int(audit.get("unknown_links", 0) or 0)
+    if not invalid and not unknown:
+        return ""
+    lines = ["", "## 引用校验说明", ""]
+    if invalid:
+        lines.append(f"- 已移除 {invalid} 处越界引用（编号不在来源清单中）。")
+    if unknown:
+        lines.append(f"- 已将 {unknown} 个不在来源清单中的正文链接降级为纯文本。")
+    return "\n".join(lines)
+
+
 def writer(state: ResearchState) -> dict:
     notes = [n for n in effective_notes(state) if n.get("content")]
-    limitation = _limitation_section(state)
     memory_note = _memory_section(state)
     if not notes:
         # 没有可用笔记：如实说明是"检索无结果"还是"预算受限"，不假装研究完成
+        limitation = _limitation_section(state)
         body = f"# {state['topic']}\n\n> 未能收集到有效研究资料，请检查搜索服务与网络后重试。"
         tail = "\n".join(x for x in (limitation, memory_note) if x)
-        return {"report": f"{body}\n{tail}\n" if tail else body}
+        return {"report": f"{body}\n{tail}\n" if tail else body, "citation_audit": {"invalid_citations": 0, "unknown_links": 0}}
 
     registry, ordered = _build_registry(notes)
     notes_text = "\n\n".join(f"### 子问题：{n['subquestion']}\n{n['content']}" for n in notes)
@@ -151,7 +166,18 @@ def writer(state: ResearchState) -> dict:
     if not report:
         report = _fallback_report(state, notes)
 
-    tail = "\n".join(x for x in (limitation, memory_note) if x)
+    # 模型可能输出越界编号或不在来源清单里的链接，出口做一次确定性校验
+    report, audit = validate_report(report, registry.keys(), len(ordered))
+    if audit["invalid_citations"] or audit["unknown_links"]:
+        reliability.record_degradation(
+            "citation",
+            f"引用后校验：移除 {audit['invalid_citations']} 个越界引用、"
+            f"{audit['unknown_links']} 个未知链接",
+        )
+
+    audit_section = _citation_audit_section(audit)
+    limitation = _limitation_section(state)
+    tail = "\n".join(x for x in (audit_section, limitation, memory_note) if x)
     if tail:
         report = f"{report}\n{tail}\n"
 
@@ -159,4 +185,4 @@ def writer(state: ResearchState) -> dict:
         f"{registry[s['url']]}. [{s['title']}]({s['url']})" for s in ordered
     )
     report = f"{report}\n\n## 参考来源\n\n{references}\n"
-    return {"report": report}
+    return {"report": report, "citation_audit": audit}

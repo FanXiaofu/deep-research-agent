@@ -189,6 +189,7 @@ def _report_event(state: dict, elapsed: float) -> str:
             "memory_reused": len(state.get("memory_reused") or []),
             "memory_written": state.get("memory_written", 0),
             "memory_enabled": config.MEMORY_ENABLED,
+            "citation_audit": state.get("citation_audit") or {},
         },
     })
 

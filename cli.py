@@ -237,7 +237,13 @@ def main() -> None:
             print(f"      · {hit['subquestion'][:40]}（相似度 {hit['similarity']}，{hit['age_days']} 天前）")
     if final.get("memory_written"):
         print(f"   📝 落档 {final['memory_written']} 条笔记到研究档案（下次同题研究可复用）")
-    events = reliability.degradations()
+    audit = final.get("citation_audit") or {}
+    if audit.get("invalid_citations") or audit.get("unknown_links"):
+        print(
+            f"   ⚠ 引用校验移除 {audit.get('invalid_citations', 0)} 个越界引用、"
+            f"{audit.get('unknown_links', 0)} 个未知链接"
+        )
+    events = [e for e in reliability.degradations() if e["component"] != "citation"]
     if events:
         print(f"   ⚠ 依赖降级 {len(events)} 次：")
         for ev in events[:6]:

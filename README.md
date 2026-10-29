@@ -17,7 +17,7 @@
 - **规划**：先把问题拆成 3~5 个可独立检索的子问题，避免问得太宽导致检索发散
 - **检索**：每个子问题由独立 Agent 并行搜索抓取，各自只回传一条精简笔记（上下文隔离，长流程不互相干扰）
 - **核对**：专门的核查角色交叉比对各笔记，把来源之间的矛盾**单列出来**，而不是替你挑一个看起来更顺眼的说法
-- **成稿**：引用编号由代码从来源列表生成，不是模型编的；报告末尾附完整来源清单
+- **成稿**：引用编号由代码从来源列表生成，不是模型编的；writer 出口再剔除越界 `[n]` 与不在来源清单中的正文链接，报告末尾附完整来源清单
 
 **可溯源怎么验证**：项目自带 20 题评测集与 A/B 对照脚本，引用有效性、来源利用率由脚本逐字校验（不依赖模型自评），数字见[评测体系](#评测体系w3)。
 
@@ -260,13 +260,14 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 | 运行时压缩 | 笔记正文超 `COMPACT_TRIGGER_CHARS` 时，compactor 节点先压缩再交给核查/撰写；**来源列表原样保留**，所以引用编号注册表不受影响；LLM 不可用时按目标字数确定性截断兜底 | 状态里记录压缩前后字数与倍数；前端时间线出现"压缩"节点 |
 | 动态重规划 | verifier 除冲突外还报告"尚未回答的缺口"；有缺口/冲突且未超 `MAX_REPLAN_ROUNDS` 时回到 planner，**只对新增子问题**做 fan-out（已完成分支不重跑） | CLI 打印"第 N 轮重规划，新增 M 个子问题"；评测记录 `replan_count` |
 | 长期记忆 | planner 查研究档案，命中的子问题直接复用历史笔记（不开检索分支）；archivist 在报告后落档；记忆有寿命、只复用笔记不复用报告 | CLI/前端显示"复用历史研究 N 条"；报告的「复用历史研究说明」节；评测记录 `memory_reused` |
+| 引用后校验 | writer 出口按来源注册表剔除越界 `[n]`、把未知正文链接降级为纯文本；结果附「引用校验说明」 | CLI/前端显示移除计数；评测记录 `invalid_citations` / `unknown_links` |
 
 配套的工程化改动：节点级 `retry_policy`、`GRAPH_RECURSION_LIMIT`（防循环失控）、`chat_safe`/`chat_json_safe` 降级包装（单节点失败不再毁掉整轮研究，writer 在模型不可用时用笔记兜底出报告）。
 
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 138 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、writer 降级
+python -m pytest tests -q     # 144 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、writer 降级
 ```
 
 ## 里程碑
@@ -302,7 +303,9 @@ python -m pytest tests -q     # 138 个用例：预算判定、LLM 超时/重试
 - [x] **R3 预算硬中断**：单次 LLM timeout / 重试受剩余墙钟约束（`_request_timeout`），预算耗尽前不再发起调用；OpenAI 兼容与 Ollama 原生路径都逐次计算；测试 138 个
   - 目的：避免一次卡住的模型调用绕过 `MAX_WALL_CLOCK_S`，让"预算硬闸门"在途调用上也成立
 - [x] **E1 可复现构建**：`requirements.lock`（77 个锁定依赖）+ GitHub Actions（pytest + docker build）+ Dockerfile 改用锁文件并加 HEALTHCHECK
-  - 实测：镜像 413MB；容器内 `/healthz` 返回 200；`nh3/langgraph/fastapi` 导入正常
+  - 实测：镜像 413MB；容器内 `/healthz` 返回 200；`nh3/langgraph/fastapi` 导入正常；Actions run #1/#2 成功
+- [x] **R10 引用后校验**：writer 出口剔除越界 `[n]`、把未知正文链接降级为纯文本，审计写入状态/CLI/前端/评测；报告附「引用校验说明」
+  - 测试 144 个；与评测侧共用 `citations.py` 的引用正则，避免两套口径漂移
 
 ## 评测体系（W3）
 

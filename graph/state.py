@@ -57,6 +57,7 @@ class ResearchState(TypedDict):
     compaction: dict                # 压缩审计信息
     memory_reused: Annotated[list[MemoryHit], operator.add]  # 复用历史记忆的记录（跨轮累积）
     memory_written: int             # 本轮落档到研究档案的笔记条数
+    citation_audit: dict            # writer 出口引用校验：越界引用/未知链接的移除计数
     report: str                     # writer 最终报告（Markdown）
 
 

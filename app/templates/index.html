@@ -160,6 +160,10 @@ function handle(data) {
       ? "<span class='chip'>笔记压缩 " + s.compaction.before_chars + "→" + s.compaction.after_chars + " 字</span>" : "";
     const degradedChip = (s.degradations && s.degradations.length)
       ? "<span class='chip' style='color:#b45309'>⚠ 依赖降级 " + s.degradations.length + " 次</span>" : "";
+    const audit = s.citation_audit || {};
+    const auditChip = (audit.invalid_citations || audit.unknown_links)
+      ? "<span class='chip' style='color:#b45309'>⚠ 引用校验移除 " +
+        (audit.invalid_citations || 0) + " 引用 / " + (audit.unknown_links || 0) + " 链接</span>" : "";
     const memoryChip = s.memory_reused
       ? "<span class='chip'>🧠 复用历史研究 " + s.memory_reused + " 条</span>"
       : (s.memory_written ? "<span class='chip'>📝 落档 " + s.memory_written + " 条</span>" : "");
@@ -167,7 +171,7 @@ function handle(data) {
       "子问题 <b>" + s.subquestions + "</b>", "笔记 <b>" + s.notes + "</b>",
       "LLM 调用 <b>" + s.llm_calls + "</b>", "tokens <b>" + s.input_tokens + " + " + s.output_tokens + "</b>",
       "成本估算 <b>$" + s.cost_usd_est + "</b>", "耗时 <b>" + fmt(s.elapsed_s) + "</b>",
-    ].map(c => `<span class="chip">${c}</span>`).join("") + budgetChip + compactChip + memoryChip + degradedChip;
+    ].map(c => `<span class="chip">${c}</span>`).join("") + budgetChip + compactChip + memoryChip + degradedChip + auditChip;
     show("report-panel");
     done();
   } else if (data.type === "error") {
