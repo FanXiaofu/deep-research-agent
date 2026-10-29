@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **158 passed**
+- 验证基线：`python -m pytest tests -q` → **158 passed + 3 Postgres（需 TEST_DATABASE_URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -25,11 +25,12 @@
 | `2f732ba` | F1：可测量评测 + 单变量覆盖 |
 | `e73d3af` | D3：/metrics + 非 root 容器 |
 | `d5d5861` | P0：多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
+| `319693f` | P1.1：Postgres checkpoint/memory + 迁移 + CI postgres job |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `4748104`，tag `v0.1.0-audit-baseline` 已推送；P0 与本文档更新随后补推；
+- 远端 `main` 已包含到 `7a8d819`，tag `v0.1.0-audit-baseline` 已推送；P1.1 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -181,8 +182,21 @@
   - 新增 `deploy/Caddyfile`：TLS 自动证书、HSTS/CSP、SSE `flush_interval -1`；
   - 新增 `docs/production.md`：目标拓扑、部署步骤、安全/备份/监控/容量/发布回滚、P1 扩展触发条件。
 - 验证：158 tests；Prometheus 文本包含请求/研究指标；本机容器 `/healthz`、`/metrics`（带 token）、非 root UID 已验证；CI runtime job 待本轮推送后确认。
-- 遗留（明确不覆盖）：多租户/RBAC、Postgres/Redis、多实例水平扩展、语义级引用核验、加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
+- 遗留（明确不覆盖）：多租户/RBAC、Redis、多实例水平扩展、语义级引用核验、加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
 - 提交：`d5d5861`。
+
+### P1.1 Postgres 存储
+
+- 目标：把 checkpoint 与 memory 从 SQLite 单写者迁到 Postgres，保留 SQLite 本地 fallback。
+- 改动：
+  - `DATABASE_URL` 配置后 `make_checkpointer()` 使用 `PostgresSaver` + `psycopg_pool`（autocommit，兼容 `CREATE INDEX CONCURRENTLY`）；
+  - `memory.py` 增加 Postgres 后端：自动建表、`%s` 占位符、`memory_schema` 版本表；显式 `db_path` 时仍走 SQLite（测试/本地）；
+  - `maintenance.py migrate-memory`：SQLite 研究档案 upsert 到 Postgres；备份/恢复明确只维护 SQLite；
+  - `docker-compose.postgres.yml` 可选 profile；CI 增加 postgres service job；
+  - `docs/production.md` / `runbook.md` 补 Postgres 部署、迁移、`pg_dump`/`pg_restore`。
+- 验证：158 SQLite tests + 3 Postgres 集成测试（memory 往返、checkpointer setup、SQLite→Postgres 迁移）通过；compose override 校验通过。
+- 遗留：旧 checkpoint 不迁移（切换前需完成在途任务）；Postgres checkpoint 保留策略未内置；限流/metrics 仍按实例。
+- 提交：`319693f`。
 
 ## 3. 路线状态
 
@@ -195,7 +209,8 @@
 | E 部署与交付 | 完成 | E1 依赖锁/CI/Docker；E2 日志与 runbook |
 | F 性能与质量 | 部分完成 | R10 引用校验 + F1 分位数/单变量工具；真实单变量批次待模型在线 |
 | P0 单实例公网生产化 | 完成 | 多 token、Prometheus、CI runtime、Caddy/生产文档 |
-| P1 多实例/多租户 | 未开始 | Postgres/Redis/RBAC/水平扩展；需独立架构阶段 |
+| P1.1 Postgres 存储 | 完成 | checkpoint/memory 可切 Postgres；SQLite fallback；迁移命令 |
+| P1.2 Redis/RBAC/多实例 | 未开始 | 共享限流、共享指标、多租户账号/RBAC、水平扩展 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -204,8 +219,8 @@
 - 独立强 judge 复评全量 20 题；
 - 真实 kill/restart 的 `--resume` 演示。
 
-**P1 架构阶段（当前单实例基线明确不覆盖）：**
-- Postgres checkpointer/memory、Redis 限流、共享指标；
+**P1.2 架构阶段（当前 P1.1 明确不覆盖）：**
+- Redis 限流、共享指标/日志；
 - 多租户账号/RBAC/配额/审计；
 - 语义级引用核验、提示词注入防护、内容安全；
 - 加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
@@ -218,6 +233,7 @@
 - [x] 分位数/单变量评测工具 + 历史批次重算（F1）
 - [x] `/metrics` 运行指标 + 非 root 容器（D3）
 - [x] 多 token + Prometheus + CI runtime + Caddy/生产文档（P0）
+- [x] Postgres checkpoint/memory + 迁移 + CI postgres job（P1.1）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
