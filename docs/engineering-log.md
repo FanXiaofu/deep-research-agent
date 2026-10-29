@@ -24,7 +24,7 @@
 | `4daa6f6` | E2：结构化日志 + 运行手册 |
 | `2f732ba` | F1：可测量评测 + 单变量覆盖 |
 | `e73d3af` | D3：/metrics + 非 root 容器 |
-| `P0`（本轮提交） | 多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
+| `d5d5861` | P0：多 token、Prometheus 指标、CI runtime、Caddy/生产文档 |
 
 推送状态：
 
@@ -182,7 +182,7 @@
   - 新增 `docs/production.md`：目标拓扑、部署步骤、安全/备份/监控/容量/发布回滚、P1 扩展触发条件。
 - 验证：158 tests；Prometheus 文本包含请求/研究指标；本机容器 `/healthz`、`/metrics`（带 token）、非 root UID 已验证；CI runtime job 待本轮推送后确认。
 - 遗留（明确不覆盖）：多租户/RBAC、Postgres/Redis、多实例水平扩展、语义级引用核验、加密备份/异地容灾、镜像扫描/WAF、值班/SLO。
-- 提交：本轮提交。
+- 提交：`d5d5861`。
 
 ## 3. 路线状态
 
