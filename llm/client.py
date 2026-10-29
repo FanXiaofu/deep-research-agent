@@ -21,6 +21,29 @@ _client: OpenAI | None = None
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
+class BudgetExceeded(RuntimeError):
+    """墙钟预算已耗尽，停止发起新的 LLM 调用。"""
+
+
+def _remaining_budget_s() -> float | None:
+    """当前 run 的剩余墙钟；default context（CLI/单测）返回 None 表示不裁剪。"""
+    ctx = run_context.current_run()
+    if ctx.run_id is None:
+        return None
+    return max(0.0, config.MAX_WALL_CLOCK_S - ctx.elapsed_s())
+
+
+def _request_timeout() -> float:
+    """把剩余墙钟按最大尝试次数均摊，避免一次卡住的调用拖垮整轮预算。"""
+    remaining = _remaining_budget_s()
+    if remaining is None:
+        return config.LLM_CALL_TIMEOUT_S
+    if remaining <= 0:
+        raise BudgetExceeded(f"墙钟预算已耗尽（{config.MAX_WALL_CLOCK_S:.0f}s）")
+    attempts = max(1, config.LLM_MAX_RETRIES + 1)
+    return max(0.5, min(config.LLM_CALL_TIMEOUT_S, remaining / attempts))
+
+
 class _UsageProxy:
     """兼容原 USAGE 接口；实际读写当前 run 的 UsageTracker。"""
 
@@ -41,8 +64,8 @@ def _build_client() -> OpenAI:
     kwargs = dict(
         api_key=config.LLM_API_KEY or "EMPTY",
         base_url=config.LLM_BASE_URL,
-        max_retries=3,
-        timeout=300,  # qwen3 思考模式下单次调用可达 1~2 分钟，本地推理要放宽
+        max_retries=config.LLM_MAX_RETRIES,
+        timeout=config.LLM_CALL_TIMEOUT_S,  # 单次调用上限；实际值还会受剩余墙钟约束
     )
     if observability.is_enabled():
         try:
@@ -75,6 +98,7 @@ def chat(messages: list[dict], *, temperature: float | None = None, json_mode: b
     )
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
+    kwargs["timeout"] = _request_timeout()
     resp = get_client().chat.completions.create(**kwargs)
     usage = getattr(resp, "usage", None)
     if usage is not None:
@@ -89,7 +113,7 @@ def chat_json(messages: list[dict], **kwargs) -> dict:
 
 
 def chat_safe(messages: list[dict], *, fallback: str = "", what: str = "LLM 调用", **kwargs) -> str:
-    """失败不抛异常的 chat：客户端自身已重试 3 次，仍失败则记录降级事件并返回 fallback。
+    """失败不抛异常的 chat：重试/超时受 LLM_MAX_RETRIES 与剩余墙钟约束，仍失败则降级。
 
     长流程里单个节点把异常抛出去会毁掉整轮研究（checkpoint 之后虽然能续跑，
     但已花掉的检索成本要重来），因此节点侧统一用这个包装做优雅降级。
@@ -160,20 +184,24 @@ def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: 
     if json_mode:
         body["format"] = "json"
 
+    attempts = max(1, config.LLM_MAX_RETRIES + 1)
     last_exc: Exception | None = None
-    for attempt in range(3):
+    for _attempt in range(attempts):
         try:
-            resp = httpx.post(f"{base}/api/chat", json=body, timeout=600)
+            timeout = _request_timeout()  # 每次尝试都重新计算剩余墙钟
+            resp = httpx.post(f"{base}/api/chat", json=body, timeout=timeout)
             resp.raise_for_status()
             data = resp.json()
             USAGE.add(int(data.get("prompt_eval_count", 0)), int(data.get("eval_count", 0)))
             return _THINK_RE.sub("", data.get("message", {}).get("content", "") or "").strip()
+        except BudgetExceeded:
+            raise
         except Exception as exc:
             last_exc = exc
             # 不支持 thinking 的模型（如 qwen2.5）收到 think 参数会报错，降级为不带该参数重试
             if "think" in str(exc).lower():
                 body.pop("think", None)
-    raise RuntimeError(f"Ollama 原生调用失败（重试 3 次）：{last_exc}")
+    raise RuntimeError(f"Ollama 原生调用失败（重试 {attempts} 次）：{last_exc}")
 
 
 def parse_json(text: str) -> dict:

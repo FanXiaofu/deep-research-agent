@@ -179,6 +179,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | 变量 | 说明 |
 |---|---|
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | 任意 OpenAI 兼容服务；本地 Ollama 示例见 `.env.example` |
+| `LLM_CALL_TIMEOUT_S` / `LLM_MAX_RETRIES` | 单次调用上限与重试次数；实际 timeout 会按剩余墙钟 / 尝试次数进一步压低 |
 | `SEARCH_PROVIDER` | `tavily`（推荐）或 `duckduckgo`（免费兜底） |
 | `MAX_SUBQUESTIONS` | 子问题上限，直接控制成本（可在 CLI/Web/评测按次覆盖，范围见 `MAX_SUBQUESTIONS_LIMIT`） |
 | `MAX_SEARCH_ROUNDS` | 每个子问题反思循环的最大轮数（同样可按次覆盖，范围见 `MAX_SEARCH_ROUNDS_LIMIT`） |
@@ -242,7 +243,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 
 | 控制 | 机制 | 可观测 |
 |---|---|---|
-| 全局预算 | planner / researcher 在开新分支前查预算（LLM 调用数 / token / 成本 / 墙钟），超限即写入 `budget_exceeded` 并收敛到 writer | CLI 与前端显示剩余额度；报告附"研究受限说明"节；评测逐题记录 |
+| 全局预算 | planner / researcher 在开新分支前查预算（LLM 调用数 / token / 成本 / 墙钟），超限即写入 `budget_exceeded` 并收敛到 writer；单次 LLM timeout 与重试按剩余墙钟均摊，预算耗尽前不再发起调用 | CLI 与前端显示剩余额度；报告附"研究受限说明"节；评测逐题记录 |
 | 依赖熔断 | 搜索重试 `SEARCH_RETRIES` 次；连续失败达阈值后熔断 `BREAKER_COOLDOWN_S` 秒（closed → open → half-open 探活），抓取同样按结果成功率熔断 | 每次降级写入降级日志（组件 + 原因），CLI/前端/评测状态文件都能看到；不再"悄悄跳过" |
 | 运行时压缩 | 笔记正文超 `COMPACT_TRIGGER_CHARS` 时，compactor 节点先压缩再交给核查/撰写；**来源列表原样保留**，所以引用编号注册表不受影响；LLM 不可用时按目标字数确定性截断兜底 | 状态里记录压缩前后字数与倍数；前端时间线出现"压缩"节点 |
 | 动态重规划 | verifier 除冲突外还报告"尚未回答的缺口"；有缺口/冲突且未超 `MAX_REPLAN_ROUNDS` 时回到 planner，**只对新增子问题**做 fan-out（已完成分支不重跑） | CLI 打印"第 N 轮重规划，新增 M 个子问题"；评测记录 `replan_count` |
@@ -253,7 +254,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 133 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、writer 降级
+python -m pytest tests -q     # 138 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、writer 降级
 ```
 
 ## 里程碑
@@ -286,6 +287,8 @@ python -m pytest tests -q     # 133 个用例：预算判定、熔断开合、�
   - 部署默认值：compose 只发布 `127.0.0.1`，公网必须设置 `APP_AUTH_TOKEN` 并放在反向代理/TLS 后面
 - [x] **C1 数据可靠性**：checkpoint/memory 统一 `db.connect`（WAL + busy_timeout）；memory schema 用 `PRAGMA user_version` 记版本；checkpoint 按最后时间清理；备份/恢复 CLI（sqlite backup API + integrity_check + 恢复前安全备份）；Docker `memory.db` 挂载到数据卷；测试 133 个
   - 备份包含 WAL 中的数据；恢复前自动给目标库做安全备份，避免误覆盖无可回退
+- [x] **R3 预算硬中断**：单次 LLM timeout / 重试受剩余墙钟约束（`_request_timeout`），预算耗尽前不再发起调用；OpenAI 兼容与 Ollama 原生路径都逐次计算；测试 138 个
+  - 目的：避免一次卡住的模型调用绕过 `MAX_WALL_CLOCK_S`，让"预算硬闸门"在途调用上也成立
 
 ## 评测体系（W3）
 

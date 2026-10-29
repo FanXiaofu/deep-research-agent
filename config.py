@@ -12,6 +12,9 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
+# 单次调用上限与重试次数；实际 timeout 还会被"剩余墙钟预算 / 尝试次数"进一步压低。
+LLM_CALL_TIMEOUT_S = float(os.getenv("LLM_CALL_TIMEOUT_S", "300"))
+LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
 # ==== 搜索（tavily / duckduckgo）====
 SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "tavily").lower()
@@ -167,6 +170,7 @@ def runtime_config_errors() -> list[str]:
         "MAX_TOTAL_TOKENS": MAX_TOTAL_TOKENS,
         "MAX_WALL_CLOCK_S": MAX_WALL_CLOCK_S,
         "MAX_BUDGET_USD": MAX_BUDGET_USD,
+        "LLM_CALL_TIMEOUT_S": LLM_CALL_TIMEOUT_S,
         "GRAPH_RECURSION_LIMIT": GRAPH_RECURSION_LIMIT,
         "APP_RATE_LIMIT_PER_MINUTE": APP_RATE_LIMIT_PER_MINUTE,
         "APP_MAX_TOPIC_CHARS": APP_MAX_TOPIC_CHARS,
@@ -198,6 +202,8 @@ def runtime_config_errors() -> list[str]:
         errors.append(
             f"CHECKPOINT_RETENTION_DAYS 不能为负数（当前 {CHECKPOINT_RETENTION_DAYS}）"
         )
+    if LLM_MAX_RETRIES < 0:
+        errors.append(f"LLM_MAX_RETRIES 不能为负数（当前 {LLM_MAX_RETRIES}）")
     return errors
 
 
