@@ -47,13 +47,16 @@ def trace_context(session_id: str, trace_name: str = "deep-research", metadata: 
         return
     try:
         from langfuse import get_client, propagate_attributes  # type: ignore[attr-defined]
-        with propagate_attributes(session_id=session_id, metadata=metadata or {}):
-            with get_client().start_as_current_observation(
-                name=trace_name, as_type="agent", input=metadata or None
-            ) as span:
-                yield span
     except Exception:
-        yield None  # 可观测性不能影响主流程
+        yield None  # 可观测性依赖不可用，不能影响主流程
+        return
+    # setup/enter 之外的异常必须继续向上抛；不能在 yield 之后再次 yield，
+    # 否则 contextlib 会报 "generator didn't stop after throw()" 并掩盖原始异常。
+    with propagate_attributes(session_id=session_id, metadata=metadata or {}):
+        with get_client().start_as_current_observation(
+            name=trace_name, as_type="agent", input=metadata or None
+        ) as span:
+            yield span
 
 
 def flush() -> None:

@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **182 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **183 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -290,6 +290,15 @@
 - 遗留：judge 与研究模型相同，不是独立强 judge；只跑 1 题；没有 kill/restart 真实演示；没有内容安全审核队列/自动拦截；没有全量 20 题和真实单变量 A/B。
 - 提交：`8b4c2d2`。
 
+### P1.8 全量 baseline / kill-restart
+
+- 全量 20 题（`p17_full20_samejudge`，1 子问题 × 1 轮，memory off）：20/20 完成、0 报错；faithfulness 4.75、coverage 4.05、must_cover 0.5、citation_validity 1.0、source_utilization 0.752；均值 79.7s/题，p95 132.5s；8 次 fetch 降级。
+- 真实 kill/restart：在 `review_brief` 暂停处强杀 CLI，再 `cli.py --resume` 完成；thread `r-20261029-175219-e0c2f2`，4 次调用、4982+863 tokens、54s，报告落盘。
+- 修复：CLI 进度打印对 `None`/非 dict 节点输出崩溃；observability context manager 在异常时二次 `yield` 掩盖原始异常。
+- 限制：judge 与研究模型同为 `qwen2.5:7b-instruct`，不是独立强 judge；1×1 规模低于默认；没有独立 judge 的 20 题复评。
+- 验证：183 SQLite tests；真实 20 题与 kill/restart 记录见 `docs/eval-p17-smoke.md`。
+- 提交：本轮提交。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -307,7 +316,8 @@
 | P1.4 多副本/负载均衡/日志 | 完成 | Caddy + nginx DNS 发现、/readyz、SSE 不缓冲、120s 优雅退出、可选 Loki |
 | P1.5 数据安全/供应链/CSP | 完成 | 加密备份、secret 文件、Trivy/Dependabot、CSP 去 inline、边缘请求体限制 |
 | P1.6 证据支撑/prompt injection | 完成 | 不可信内容包裹、词面/数字审计、可选语义 judge |
-| P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计；全量/独立 judge/kill-restart 未做 |
+| P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计 |
+| P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；独立强 judge 未接入 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -337,6 +347,7 @@
 - [x] 加密备份 + secret 文件 + Trivy/Dependabot + CSP 去 inline（P1.5）
 - [x] 证据支撑审计 + 网页不可信包裹（P1.6）
 - [x] 真实模型 1 题 smoke + 可选内容安全审计（P1.7）
+- [x] 20 题同 judge baseline + kill/restart 续跑（P1.8）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

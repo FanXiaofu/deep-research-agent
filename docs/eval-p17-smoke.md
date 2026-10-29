@@ -1,4 +1,4 @@
-# P1.7 真实模型 smoke 评测
+# P1.7 / P1.8 真实模型评测记录
 
 日期：2026-10-29
 
@@ -46,10 +46,38 @@ python eval/run_eval.py \
 2. **模型自造参考来源**：7B 模型未遵守“不要输出参考来源”，出现过 `## 参考来源` 和 `--- [n1] ...` 两种形式，导致重复来源、grounding 只审计前半段；现在统一剥离模型生成的来源清单，只保留代码追加的一份。
 3. **无 H1 正文被截断**：`_strip_preamble` 原来从第一个 `#` 行截断，正文没有 H1 时会把 `## 参考来源` 当成正文起点；现在只从一级标题 `# ` 截断。
 
+## 全量 20 题（同一 judge，降低单题规模）
+
+```bash
+python eval/run_eval.py \
+  --tag p17_full20_samejudge \
+  --limit 20 \
+  --max-sub 1 \
+  --rounds 1 \
+  --memory off
+```
+
+- 20/20 完成，0 题报错；**不是默认 4 子问题 × 2 轮**，是为了控制本地耗时降到 1 × 1；
+- 研究/judge 都是 `qwen2.5:7b-instruct`，**不是独立强 judge**；
+- 均值：faithfulness 4.75 / coverage 4.05 / must_cover 0.5 / citation_quality 4.55 / citation_validity 1.0 / source_utilization 0.752；
+- 单题耗时均值 79.7s，p50 74.0s，p95 132.5s；单题成本估算均值 $0.003；
+- grounding：共检查 123 条带引用句，39 条低词面覆盖，19 条数字未在来源摘要中找到；语义 judge 未启用；
+- 8 次依赖降级，主要是 fetch 熔断；
+- 低支撑句分布在 10 道题；词面覆盖只是启发式，不能把这 39 条直接等同于 39 个事实错误。
+
+## kill/restart `--resume` 演示
+
+- thread：`r-20261029-175219-e0c2f2`
+- 启动 CLI 后在 `review_brief` 的 human-in-the-loop 暂停；
+- 在暂停处强制结束进程，再用 `cli.py --resume` 从 checkpoint 继续；
+- 续跑完成并落盘：`reports/20261029_1753_checkpoint-resume-test2.md`；
+- 续跑用量：4 次 LLM 调用、4982+863 tokens、54s；
+- 首次演示还暴露并修复了：CLI 进度打印遇到 `None` 节点输出崩溃、Langfuse context manager 异常时二次 `yield` 掩盖原始异常。
+
 ## 结论与限制
 
-- 真实链路可跑通，引用编号校验为 1.0，grounding 发现 1 条低词面覆盖句。
-- judge 与研究模型相同，`faithfulness=4` 只能作为相对信号，不能对外宣称绝对质量。
-- 只跑了 1 题、2 子问题、1 轮，不是完整 benchmark。
-- 交付报告仍出现 2 次 fetch 熔断；说明外部网页抓取稳定性仍需关注。
-- 语义 grounding judge 未启用；本次只有词面/数字审计。
+- 真实链路可跑通，引用编号校验为 1.0；全量 20 题同 judge 结果是可复现基线，但不是独立质量结论。
+- judge 与研究模型相同，`faithfulness` 只能作为相对信号。
+- 全量 20 题的 1×1 规模低于默认配置；不能直接代表默认规模和更长检索轮次的质量。
+- 交付报告仍出现 fetch 熔断；外部网页抓取稳定性仍需关注。
+- 语义 grounding judge、内容安全 judge、独立强 judge 均未启用。

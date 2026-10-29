@@ -32,6 +32,8 @@ def _print_progress(node: str, out, started: float) -> None:
     elapsed = time.time() - started
     outs = out if isinstance(out, list) else [out]  # 并行同名节点可能合并成列表
     for item in outs:
+        if not isinstance(item, dict):
+            continue
         if node in ("review_brief", "review_plan"):
             continue  # 审核节点静默，暂停提示由 interrupt 负责
         if node == "planner" and item.get("memory_reused"):
