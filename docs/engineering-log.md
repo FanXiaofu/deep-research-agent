@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **185 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **188 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -310,6 +310,14 @@
 - 遗留：110 题仍不是生产真理；同 judge 只能做回归；adversarial 的期望行为需要独立安全 judge/人工复核；holdout 不应参与调参。
 - 提交：`48c2e51`。
 
+### Command Code 独立 judge（P1.8 延伸）
+
+- 新增 `eval/commandcode_judge.py`：通过 `cmdc` headless + stdin 调独立模型，解析 NDJSON finalText 的 JSON。
+- 配置：`JUDGE_PROVIDER=commandcode`、`JUDGE_MODEL`、`JUDGE_EFFORT`、可选 `COMMAND_CODE_CLI`；key 只从 `COMMAND_CODE_API_KEY` 环境变量继承。
+- 单题抽样：baseline q01 同模型 qwen 给 5/5/5（但正文 0 引用），`deepseek/deepseek-v4-pro` 给 4/4/2，证明同 judge 偏差。
+- 验证：188 SQLite tests；适配器 fake subprocess 测试；真实 key 最小调用解析通过；key 未写入仓库。
+- 限制：`cmdc` 每题启动一次，较慢；需要 Go+ 套餐/API key；仍不是 110 题独立复评。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -328,8 +336,9 @@
 | P1.5 数据安全/供应链/CSP | 完成 | 加密备份、secret 文件、Trivy/Dependabot、CSP 去 inline、边缘请求体限制 |
 | P1.6 证据支撑/prompt injection | 完成 | 不可信内容包裹、词面/数字审计、可选语义 judge |
 | P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计 |
-| P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；独立强 judge 未接入 |
+| P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；Command Code judge 已接入，110 题独立复评未跑 |
 | 评测集 v2 | 完成 | 110 题分层：80 core + 30 adversarial；suite 过滤 |
+| Command Code 独立 judge | 完成（单题抽样） | `JUDGE_PROVIDER=commandcode`；Go 模型 headless |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -361,6 +370,7 @@
 - [x] 真实模型 1 题 smoke + 可选内容安全审计（P1.7）
 - [x] 20 题同 judge baseline + kill/restart 续跑（P1.8）
 - [x] 评测集扩到 110 题并支持 suite 分层
+- [x] Command Code 独立 judge 适配器（单题抽样验证）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

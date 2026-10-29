@@ -74,6 +74,20 @@ python eval/run_eval.py \
 - 续跑用量：4 次 LLM 调用、4982+863 tokens、54s；
 - 首次演示还暴露并修复了：CLI 进度打印遇到 `None` 节点输出崩溃、Langfuse context manager 异常时二次 `yield` 掩盖原始异常。
 
+## 独立 judge 单题抽样
+
+用 Command Code Go 套餐的 `deepseek/deepseek-v4-pro` 通过 `cmdc` headless 评审 baseline q01（不是完整批次）：
+
+| 指标 | 同模型 qwen judge | 独立 DeepSeek V4 Pro |
+|---|---:|---:|
+| faithfulness | 5 | 4 |
+| coverage | 5 | 4 |
+| citation_quality | 5 | 2 |
+
+baseline q01 正文实际 **0 条引用**，同模型 judge 仍给了 citation_quality=5；独立 judge 指出没有正文引用标记、无法核对来源，给了 2。这是单题抽样，但清楚地说明同模型 judge 有系统性偏差。
+
+接入方式：`JUDGE_PROVIDER=commandcode`、`JUDGE_MODEL=deepseek/deepseek-v4-pro`，并设置 `COMMAND_CODE_API_KEY`。
+
 ## 结论与限制
 
 - 真实链路可跑通，引用编号校验为 1.0；全量 20 题同 judge 结果是可复现基线，但不是独立质量结论。

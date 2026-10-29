@@ -3,8 +3,9 @@
 覆盖度评分会带上评测集的 must_cover 清单（此前该字段只存在于数据里、从未参与评分），
 并把"未覆盖要点"换算成 must_cover_coverage（0~1）——把主观打分降级为可逐条核对的比对。
 
-说明：judge 与研究共用 config.LLM_MODEL。小模型当 judge 有系统性偏差，
-分数主要用于 A/B 相对对比；对外报告的绝对分数建议用更强模型复评。
+说明：默认 judge 与研究共用 config.LLM_MODEL（有系统性偏差）；设置
+JUDGE_PROVIDER=commandcode 后通过 cmdc headless 调用独立模型，需提供
+COMMAND_CODE_API_KEY。分数主要用于 A/B 相对对比。
 """
 import re
 
@@ -91,6 +92,20 @@ def match_uncovered(points: list[str], reported: list[str]) -> list[str]:
     return missed
 
 
+def _judge_json(prompt: str) -> dict:
+    if config.JUDGE_PROVIDER == "commandcode":
+        try:
+            from commandcode_judge import judge_json
+        except ImportError:  # 以包形式导入（pytest）
+            from eval.commandcode_judge import judge_json
+        return judge_json(prompt, model=config.JUDGE_MODEL or None)
+    return chat_json(
+        [{"role": "user", "content": prompt}],
+        temperature=0.0,
+        model=config.JUDGE_MODEL or None,
+    )
+
+
 def _score(data: dict) -> int:
     try:
         return max(1, min(5, int(data.get("score", 3))))
@@ -117,10 +132,8 @@ def judge_report(
 
     result: dict = {"question": question}
     try:
-        data = chat_json(
-            [{"role": "user", "content": FAITHFULNESS_PROMPT.format(report=body, notes=notes_text)}],
-            temperature=0.0,
-            model=config.JUDGE_MODEL or None,
+        data = _judge_json(
+            FAITHFULNESS_PROMPT.format(report=body, notes=notes_text)
         )
         result["faithfulness"] = _score(data)
         result["unsupported_claims"] = data.get("unsupported_claims", [])[:5]
@@ -129,18 +142,13 @@ def judge_report(
         result["judge_error"] = f"faithfulness: {type(exc).__name__}: {exc}"
 
     try:
-        data = chat_json(
-            [{
-                "role": "user",
-                "content": COVERAGE_PROMPT.format(
-                    brief=brief,
-                    subquestions="\n".join(f"- {s}" for s in subquestions),
-                    must_cover="\n".join(f"- {x}" for x in must_cover) or "（本题未定义必覆盖要点）",
-                    report=body,
-                ),
-            }],
-            temperature=0.0,
-            model=config.JUDGE_MODEL or None,
+        data = _judge_json(
+            COVERAGE_PROMPT.format(
+                brief=brief,
+                subquestions="\n".join(f"- {s}" for s in subquestions),
+                must_cover="\n".join(f"- {x}" for x in must_cover) or "（本题未定义必覆盖要点）",
+                report=body,
+            )
         )
         result["coverage"] = _score(data)
         result["missing"] = data.get("missing", [])[:5]
@@ -157,10 +165,8 @@ def judge_report(
         result["judge_error"] = result.get("judge_error", "") + f" coverage: {exc}"
 
     try:
-        data = chat_json(
-            [{"role": "user", "content": CITATION_PROMPT.format(report=body, refs=refs)}],
-            temperature=0.0,
-            model=config.JUDGE_MODEL or None,
+        data = _judge_json(
+            CITATION_PROMPT.format(report=body, refs=refs)
         )
         result["citation_quality"] = _score(data)
     except Exception as exc:

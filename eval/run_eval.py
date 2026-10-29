@@ -124,7 +124,13 @@ def config_snapshot(
 ) -> dict:
     return {
         "llm_model": config.LLM_MODEL,
-        "judge_model": config.JUDGE_MODEL or config.LLM_MODEL,
+        "judge_provider": config.JUDGE_PROVIDER,
+        "judge_model": config.JUDGE_MODEL
+        or (
+            "deepseek/deepseek-v4-pro"
+            if config.JUDGE_PROVIDER == "commandcode"
+            else config.LLM_MODEL
+        ),
         "llm_base_url": config.LLM_BASE_URL,
         "overrides": overrides or {},
         "max_subquestions": max_subquestions,
@@ -280,9 +286,14 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
     out_dir = RESULTS_DIR / args.tag
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    judge_model = config.JUDGE_MODEL or config.LLM_MODEL
+    judge_model = config.JUDGE_MODEL or (
+        "deepseek/deepseek-v4-pro"
+        if config.JUDGE_PROVIDER == "commandcode"
+        else config.LLM_MODEL
+    )
     print(
-        f"== 评测批次 {args.tag}：{len(questions)} 题 | 研究 {config.LLM_MODEL} | judge {judge_model} ==",
+        f"== 评测批次 {args.tag}：{len(questions)} 题 | 研究 {config.LLM_MODEL} | "
+        f"judge {judge_model} ({config.JUDGE_PROVIDER}) ==",
         flush=True,
     )
     if getattr(args, "overrides", None):
@@ -335,11 +346,12 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
 def write_summary_md(summary: dict, out_dir: Path) -> None:
     rows, means, cfg = summary["rows"], summary["means"], summary["config"]
     judge_model = cfg.get("judge_model") or cfg["llm_model"]
+    judge_provider = cfg.get("judge_provider", "local")
     pct = summary.get("percentiles", {})
     lines = [
         f"# 评测批次：{summary['tag']}",
         "",
-        f"- 子集：`{summary.get('suite', 'all')}`　|　时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：`{judge_model}`",
+        f"- 子集：`{summary.get('suite', 'all')}`　|　时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：`{judge_model}`（`{judge_provider}`）",
         f"- 配置：page_chars={cfg.get('research_page_chars', '-')}, "
         f"note={cfg.get('note_min_chars', '-')}~{cfg.get('note_max_chars', '-')}"
         f", strict_grounding={cfg.get('writer_strict_grounding', '-')}"

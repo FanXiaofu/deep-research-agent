@@ -298,6 +298,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `<NAME>_FILE` | 敏感配置从文件读取（Docker/K8s secret），优先于同名环境变量；支持 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key |
 | `GROUNDING_AUDIT_ENABLED` / `GROUNDING_LEXICAL_THRESHOLD` | 是否在报告出口做证据支撑审计，以及词面覆盖阈值（默认开 / 0.15） |
 | `GROUNDING_JUDGE_MODEL` / `GROUNDING_MAX_CLAIMS` | 语义 judge 模型（留空只用词面审计）与最多核查句数（默认 8） |
+| `JUDGE_PROVIDER` / `JUDGE_MODEL` / `JUDGE_EFFORT` | 评测 judge：`local` 复用 LLM，或 `commandcode` 通过 `cmdc` headless 调 Go 套餐模型；commandcode 模式需 `COMMAND_CODE_API_KEY` |
 | `SAFETY_JUDGE_MODEL` | 可选内容安全 judge；留空关闭。只追加风险审计，不是合规分类器 |
 | `BACKUP_ENCRYPTION_KEY` | 备份 Fernet key；`maintenance.py backup --encrypt` 使用 |
 | `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |
@@ -369,7 +370,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 185 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 188 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -431,7 +432,8 @@ python -m pytest tests -q     # 185 个用例 + 6 个集成用例（4 Postgres /
 - [x] **P1.7 真实 smoke / 内容安全钩子**：本地 Ollama `qwen2.5:7b-instruct` 跑 1 题真实评测；修复引用标记误判、模型自造来源、无 H1 截断；新增可选 `SAFETY_JUDGE_MODEL` 内容安全审计（默认关闭）
   - 真实结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；judge 与研究模型相同，不是独立强 judge
 - [x] **P1.8 全量 baseline / 断点续跑**：20 题全量（1×1 规模）0 报错；faithfulness 4.75、citation_validity 1.0；真实 kill/restart `--resume` 完成；修复 CLI None 输出与 Langfuse context manager 异常掩盖
-  - 仍是同 judge 基线，不是独立强 judge；全量结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)
+  - 新增 `JUDGE_PROVIDER=commandcode`：通过 `cmdc` headless 调 Go 套餐模型；独立 judge 单题抽样显示同模型偏差
+  - 全量结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)
 - [x] **评测集 v2**：扩充到 110 题——80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial；`run_eval.py --suite` 分层运行
   - 说明与用法见 [docs/eval-dataset.md](docs/eval-dataset.md)；同 judge 的 110 题仍不能替代独立强 judge
 

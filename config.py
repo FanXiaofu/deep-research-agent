@@ -25,6 +25,10 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 # 评测 judge 可单独指定更强模型；留空表示复用 LLM_MODEL
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "")
+# local = 复用 LLM 客户端；commandcode = 通过 cmdc headless 调 Go/更高套餐模型
+JUDGE_PROVIDER = os.getenv("JUDGE_PROVIDER", "local").lower()
+JUDGE_EFFORT = os.getenv("JUDGE_EFFORT", "high")
+COMMAND_CODE_CLI = os.getenv("COMMAND_CODE_CLI", "")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 # 单次调用上限与重试次数；实际 timeout 还会被"剩余墙钟预算 / 尝试次数"进一步压低。
 LLM_CALL_TIMEOUT_S = float(os.getenv("LLM_CALL_TIMEOUT_S", "300"))
@@ -253,6 +257,8 @@ def runtime_config_errors() -> list[str]:
         errors.append(
             f"AUTH_DEFAULT_DAILY_QUOTA 不能为负数（当前 {AUTH_DEFAULT_DAILY_QUOTA}）"
         )
+    if JUDGE_PROVIDER not in {"local", "commandcode"}:
+        errors.append(f"JUDGE_PROVIDER={JUDGE_PROVIDER!r} 不支持（local/commandcode）")
     if GROUNDING_MAX_CLAIMS < 0:
         errors.append(f"GROUNDING_MAX_CLAIMS 不能为负数（当前 {GROUNDING_MAX_CLAIMS}）")
     if not 0 <= GROUNDING_LEXICAL_THRESHOLD <= 1:

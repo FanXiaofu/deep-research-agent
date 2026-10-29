@@ -194,6 +194,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 - 语义 judge 使用独立模型时，注意它和研究模型的相关性；不要把分数当绝对真值。
 - 网页内容统一视为不可信数据；若发现注入迹象，先停用相关来源并人工复核报告。
 - 可选 `SAFETY_JUDGE_MODEL` 会追加“内容安全审计”（low/medium/high），默认关闭；高风险结果必须人工处理，不能视为合规结论。
+- 独立 judge：`JUDGE_PROVIDER=commandcode` + `JUDGE_MODEL=deepseek/deepseek-v4-pro`（Go 套餐可用），并设置 `COMMAND_CODE_API_KEY`；`cmdc` 必须已安装。该模式每题会通过 headless CLI 调用，速度比本地 judge 慢。
 
 ## 8. 故障排查
 
