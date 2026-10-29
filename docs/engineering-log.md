@@ -37,7 +37,7 @@
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `1b32da3`，tag `v0.1.0-audit-baseline` 已推送；P1.4 / P1.5 / P1.6 已推送；
+- 远端 `main` 已包含到 `5aa8bf9`，tag `v0.1.0-audit-baseline` 已推送；P1.4 / P1.5 / P1.6 / P1.7 已推送；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
