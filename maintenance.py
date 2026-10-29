@@ -18,6 +18,7 @@ import ormsgpack
 
 import config
 import db
+import memory
 
 
 def _checkpoint_ts(blob: bytes):
@@ -151,7 +152,28 @@ def main() -> None:
     restore.add_argument("--target", required=True, help="要恢复的目标库路径")
     restore.add_argument("--yes", action="store_true", help="确认覆盖目标库")
 
+    migrate = sub.add_parser("migrate-memory", help="SQLite 研究档案迁移到 Postgres")
+    migrate.add_argument("--from", dest="source", required=True, help="SQLite memory.db 路径")
+    migrate.add_argument("--database-url", default=config.DATABASE_URL,
+                         help="目标 Postgres URL（默认读 DATABASE_URL）")
+
     args = parser.parse_args()
+    if args.command == "migrate-memory":
+        if not args.database_url:
+            raise SystemExit("需要 --database-url 或 .env DATABASE_URL")
+        rows = memory.export_all(db_path=args.source)
+        config.DATABASE_URL = args.database_url
+        imported = memory.import_all(rows)
+        print(json.dumps(
+            {"exported": len(rows), "imported": imported, "target": "postgres"},
+            ensure_ascii=False,
+        ))
+        return
+    if config.DATABASE_URL.strip():
+        raise SystemExit(
+            "DATABASE_URL 已启用：maintenance.py 仅维护 SQLite；"
+            "Postgres 请使用 pg_dump/psql 做备份，并按 checkpoint 表策略清理。"
+        )
     if args.command == "prune-checkpoints":
         print(json.dumps(
             prune_checkpoints(retention_days=args.days, db_path=args.db),

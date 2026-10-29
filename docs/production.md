@@ -1,7 +1,7 @@
-# 生产化落地说明（P0：单实例公网服务）
+# 生产化落地说明（P0 + P1.1：单实例公网服务 / Postgres 存储）
 
 本文定义当前项目“向真实生产过渡”的目标形态、已具备能力和仍未覆盖的部分。
-**当前目标是单实例、低并发、可运维的公网服务，不是多租户 SaaS。**
+**当前目标是单实例或少量实例、低并发的公网服务，不是多租户 SaaS。**
 
 ## 1. 目标拓扑
 
@@ -12,15 +12,15 @@ Internet
 Caddy（TLS 自动证书、HSTS、CSP、SSE 不缓冲）
   │ 反向代理
   ▼
-app 容器（uvicorn 单进程，非 root UID 10001）
-  ├─ ./data/checkpoints.db   （WAL）
-  ├─ ./data/memory.db        （WAL）
+app 容器（uvicorn，非 root UID 10001）
+  ├─ DATABASE_URL 存在 → Postgres（checkpoint + memory）
+  ├─ 否则 → ./data/checkpoints.db + ./data/memory.db（SQLite WAL）
   └─ Langfuse（可选，自托管或 Cloud）
 ```
 
 - app 只发布到 `127.0.0.1:8000`，不直接对公网暴露。
 - Caddy 负责 80/443、TLS、HSTS、基础安全响应头。
-- 当前不引入 Postgres/Redis/消息队列；单实例是明确的容量边界。
+- 当前不引入 Redis/消息队列；限流与进程指标仍按实例独立。
 
 ## 2. 部署前提
 
@@ -29,6 +29,22 @@ app 容器（uvicorn 单进程，非 root UID 10001）
 - 模型与搜索凭据：`LLM_*`、`SEARCH_*`；
 - 一个足够长的随机 `APP_AUTH_TOKEN`（或用 `APP_AUTH_TOKENS` 给多个客户端分发）；
 - 80/443 对外放行，8000 不对公网放行。
+
+## 2.1 Postgres 后端（P1.1）
+
+设置 `DATABASE_URL` 后，checkpoint 与 memory 都走 Postgres：
+
+```bash
+# 本地 compose 起一个 Postgres（生产建议用外部托管库）
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+```
+
+- 首次连接自动建 `research_memory`、`memory_schema` 和 LangGraph checkpoint 表；
+- 旧 SQLite 研究档案可迁移：
+  `python maintenance.py migrate-memory --from memory.db --database-url <url>`；
+- **旧 checkpoint 不迁移**：切换前让在途研究完成，或接受旧 thread 不能续跑；
+- `maintenance.py backup/prune/restore` 仅维护 SQLite；Postgres 使用 `pg_dump` / `pg_restore`；
+- 多实例时 checkpoint/memory 已共享；限流、metrics、日志仍需 Redis/共享后端，见第 7 节。
 
 ## 3. 首次部署
 
@@ -74,7 +90,9 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 
 ## 5. 数据与备份
 
-- 数据文件：`data/checkpoints.db`、`data/memory.db`（SQLite WAL）。
+### SQLite 模式
+
+- 数据文件：`data/checkpoints.db`、`data/memory.db`（WAL）。
 - 每日备份：
 
 ```bash
@@ -82,11 +100,21 @@ python maintenance.py backup --out backups
 ```
 
 - 备份包含 WAL 内容；**不要直接 cp 正在写入的 .db**。
-- 建议：
-  - 备份加密后传到对象存储/另一台机器（当前脚本只做本地备份，加密/上传需外部工具）；
-  - 每周执行 `prune-checkpoints --days 7`；
-  - 每季度做一次恢复演练：停服 → restore → healthz → 小规模研究。
-- 恢复需要停服；`restore` 会先给当前库做安全备份。
+- 每周执行 `prune-checkpoints --days 7`；恢复需停服，`restore` 会先做安全备份。
+
+### Postgres 模式
+
+```bash
+# 备份
+pg_dump -Fc "$DATABASE_URL" > backups/deep_research-$(date +%F).dump
+
+# 恢复（先停 app）
+pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-29.dump
+```
+
+- 备份加密后传到对象存储/另一台机器；当前脚本只做本地备份。
+- Postgres checkpoint 的保留策略尚未内置（P1.2）；上线后需按 `checkpoints` 表时间字段制定清理任务。
+- 每季度做恢复演练：停服 → 恢复 → `/healthz` → 小规模研究。
 
 ## 6. 观测与告警
 
@@ -112,19 +140,20 @@ python maintenance.py backup --out backups
 出现以下情况时应进入多实例阶段：
 
 - 需要 2 个以上 app 副本或滚动发布；
-- SQLite 出现持续 `database is locked`；
 - 限流/指标需要跨实例一致；
 - 需要按用户配额、审计与 RBAC。
 
-多实例阶段需要：
+当前 P1.1 已完成：
 
 1. LangGraph checkpointer 换 Postgres（`langgraph-checkpoint-postgres`）；
-2. memory 表迁移到 Postgres；
+2. memory 表迁移到 Postgres（含 `migrate-memory`）。
+
+仍需（P1.2）：
+
 3. 限流换 Redis；
 4. 指标/日志接共享后端；
-5. 负载均衡 + SSE 超时配置 + 共享会话/数据。
-
-这些是 P1，不在当前单实例基线内。
+5. 负载均衡 + SSE 超时配置 + 共享会话/数据；
+6. 多租户账号/RBAC/配额。
 
 ## 8. 发布与回滚
 
@@ -136,7 +165,7 @@ git status --short          # 必须干净
 docker build -t deep-research-agent:<tag> .
 ```
 
-GitHub Actions 必须通过 `test`、`docker`、`runtime` 三个 job（runtime 会实际启动容器、检查 `/healthz` 与 UID 10001）。
+GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres` 四个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres 跑存储集成测试）。
 
 发布步骤：
 

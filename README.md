@@ -144,14 +144,31 @@ docker compose up -d
 
 ## CI 与可复现构建（E1）
 
-- `requirements.lock`：77 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
-- `.github/workflows/ci.yml`：`test` job 从锁文件安装并跑 `pytest`；`docker` job 构建镜像。
+- `requirements.lock`：85 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
+- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）。
 - `Dockerfile` 用 `requirements.lock` 安装，并内置 `/healthz` HEALTHCHECK。
 - 本地构建：`docker build -t deep-research-agent .`；国内网络可加 `--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`。
 
+## Postgres 后端（P1.1）
+
+默认 SQLite；设置 `DATABASE_URL` 后，LangGraph checkpoint 与 memory 都切到 Postgres：
+
+```bash
+# 本地 compose 起一个 Postgres（也可指向外部托管库）
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+
+# 把已有 SQLite 研究档案迁到 Postgres（checkpoint 旧 thread 不迁移，先让在途任务跑完）
+python maintenance.py migrate-memory --from memory.db \
+  --database-url postgresql://app:app@127.0.0.1:5432/deep_research
+```
+
+- 首次连接会自动建 `research_memory`、`memory_schema` 与 LangGraph checkpoint 表；
+- `maintenance.py backup/prune/restore` 只维护 SQLite；Postgres 用 `pg_dump` / `pg_restore`；
+- 多实例时 checkpoint 与 memory 已可共享，但限流/指标仍是进程级，水平扩展前还需 Redis/负载均衡。
+
 ## 数据维护（C1）
 
-checkpoint 与 memory 都是 SQLite，统一开启 WAL + `busy_timeout`。备份使用 sqlite3 的 backup API（包含 WAL 中的数据），不要直接拷贝正在写入的 `.db` 文件。
+checkpoint 与 memory 默认都是 SQLite，统一开启 WAL + `busy_timeout`。备份使用 sqlite3 的 backup API（包含 WAL 中的数据），不要直接拷贝正在写入的 `.db` 文件。
 
 ```bash
 python maintenance.py prune-checkpoints --days 7   # 0 = 不清理
@@ -216,6 +233,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `MEMORY_ENABLED` / `MEMORY_DB` | 研究档案（长期记忆）开关与库文件；**默认关闭**，开启后命中记忆的子问题不再检索 |
 | `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
 | `OLLAMA_NUM_CTX` / `LLM_NATIVE_OLLAMA` | Ollama 原生路径的上下文窗口与开关（原生 `/api/chat` 才能关掉 qwen3 thinking）；提示词逼近上限时在 stderr 告警 |
+| `DATABASE_URL` | 配置后 checkpoint 与 memory 走 Postgres；留空使用 SQLite。例：`postgresql://app:app@127.0.0.1:5432/deep_research` |
 | `CHECKPOINT_DB` | SQLite checkpoint 文件路径（默认 `checkpoints.db`）；容器部署时应放到持久化卷 |
 | `CHECKPOINT_RETENTION_DAYS` | checkpoint 保留天数（默认 7；0=不清理），由 `maintenance.py prune-checkpoints` 执行 |
 | `LLM_PRICE_INPUT_PER_M` / `LLM_PRICE_OUTPUT_PER_M` | 成本估算单价（USD / 1M tokens）；本地 Ollama 想显示 0 成本时显式设为 0 |
@@ -274,7 +292,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 158 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志/指标、评测分位数/单变量覆盖、writer 降级
+python -m pytest tests -q     # 158 个用例 + 3 个 Postgres 用例（未配置 TEST_DATABASE_URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres 存储
 ```
 
 ## 里程碑
@@ -320,7 +338,9 @@ python -m pytest tests -q     # 158 个用例：预算判定、LLM 超时/重试
 - [x] **D3 指标与非 root 容器**：`GET /metrics`（请求计数 + research 状态）；镜像改为 UID 10001 非 root 运行；Docker 无 token 启动时写 warning
   - 测试 156 个；容器内 `id -u` = 10001，`/healthz` 200，带 token 的 `/metrics` 正常
 - [x] **P0 生产化切片**：多 token + 按 token 限流；Prometheus 文本指标；CI 增加容器 runtime job（健康检查 + 非 root）；Caddy TLS 反代示例与 [docs/production.md](docs/production.md)
-  - 测试 158 个；单实例公网服务目标；多实例的 Postgres/Redis/RBAC 明确列为 P1，不在当前基线内
+  - 测试 158 个；单实例公网服务目标；多实例的 Redis/RBAC 明确列为 P1
+- [x] **P1.1 Postgres 后端**：checkpoint/memory 支持 `DATABASE_URL`（SQLite fallback）；自动建表；`migrate-memory` 迁移研究档案；CI 增加 Postgres service job；compose 可选 Postgres profile
+  - Postgres 集成测试 3 个通过；旧 checkpoint 不迁移，切换前需让在途任务完成；限流/指标仍为进程级
 
 ## 评测体系（W3）
 

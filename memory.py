@@ -1,7 +1,7 @@
 """研究档案：跨运行的长期记忆。
 
 为什么需要：一轮研究要几分钟、几分钱 token，但结论不落档 —— 同一个问题（或高度相似的
-子问题）第二次研究仍然从零检索。这里把"子问题 → 笔记摘要 → 来源"存进本地 SQLite，
+子问题）第二次研究仍然从零检索。这里把"子问题 → 笔记摘要 → 来源"存进 SQLite/Postgres，
 规划阶段先查记忆：命中的子问题直接复用笔记（不再派检索分支），未命中的才开分支。
 
 三个克制的设计：
@@ -20,8 +20,9 @@
 因此阈值定在重叠区之上（默认 0.62），明确选择"宁可漏复用，不可误复用"。
 要覆盖同义改写需要语义匹配（本地 embedding），当前刻意不做。
 
+存储：默认 SQLite；设置 `DATABASE_URL` 后同一套接口走 Postgres（单实例迁移用）。
 并发：查询发生在 planner（单节点），落档发生在 archivist（writer 之后的单节点），
-并行 researcher 不碰记忆库，因此不需要跨线程共享连接。
+并行 researcher 不碰记忆库。
 """
 import json
 import sqlite3
@@ -30,9 +31,14 @@ from datetime import datetime, timedelta
 import config
 import db
 
+try:  # pg 是可选依赖：本地 SQLite 模式不需要
+    import psycopg
+except ImportError:  # pragma: no cover - 本地未安装
+    psycopg = None
+
 SCHEMA_VERSION = 1
 
-SCHEMA = """
+SCHEMA_SQLITE = """
 CREATE TABLE IF NOT EXISTS research_memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     topic TEXT NOT NULL,
@@ -49,6 +55,27 @@ CREATE TABLE IF NOT EXISTS research_memory (
 );
 CREATE INDEX IF NOT EXISTS idx_memory_updated ON research_memory (updated_at DESC);
 """
+
+SCHEMA_POSTGRES = """
+CREATE TABLE IF NOT EXISTS research_memory (
+    id SERIAL PRIMARY KEY,
+    topic TEXT NOT NULL,
+    topic_norm TEXT NOT NULL,
+    subquestion TEXT NOT NULL,
+    subquestion_norm TEXT NOT NULL,
+    note TEXT NOT NULL,
+    sources TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at TEXT,
+    UNIQUE (topic_norm, subquestion_norm)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_updated ON research_memory (updated_at DESC);
+"""
+
+_PG_ERRORS = (psycopg.Error,) if psycopg is not None else ()
+_DB_ERRORS = (sqlite3.Error, OSError, RuntimeError) + _PG_ERRORS
 
 _PUNCT = str.maketrans("", "", " \t\r\n，。；：、！？,.;:!?（）()【】[]{}<>《》“”\"'`·-—_/+\\|*#@$%^&=")
 
@@ -73,7 +100,42 @@ def bigram_jaccard(a: str, b: str) -> float:
     return round(len(set_a & set_b) / len(set_a | set_b), 4)
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
+def _pg_enabled(db_path: str | None) -> bool:
+    return db_path is None and bool(config.DATABASE_URL.strip())
+
+
+def _q(sql: str, pg: bool) -> str:
+    return sql.replace("?", "%s") if pg else sql
+
+
+def _executemany(conn, sql: str, rows: list[tuple]) -> None:
+    # sqlite3.Cursor 不支持 with 语句；psycopg 的 cursor 可以，这里统一手动 close
+    cur = conn.cursor()
+    try:
+        cur.executemany(sql, rows)
+    finally:
+        cur.close()
+
+
+def _split_schema(sql: str) -> list[str]:
+    return [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+
+
+def _ensure_postgres(conn) -> None:
+    for statement in _split_schema(SCHEMA_POSTGRES):
+        conn.execute(statement)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS memory_schema (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+    )
+    conn.execute(
+        "INSERT INTO memory_schema (key, value) VALUES ('version', %s) "
+        "ON CONFLICT (key) DO NOTHING",
+        (str(SCHEMA_VERSION),),
+    )
+    conn.commit()
+
+
+def _migrate_sqlite(conn: sqlite3.Connection) -> None:
     """用 PRAGMA user_version 记录 schema 版本；后续版本在这里追加 ALTER。"""
     version = conn.execute("PRAGMA user_version").fetchone()[0] or 0
     if version < SCHEMA_VERSION:
@@ -82,10 +144,26 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
-    conn = db.connect(db_path, timeout=15)
-    conn.executescript(SCHEMA)
-    _migrate(conn)
+def _schema_version(conn, pg: bool) -> int:
+    if pg:
+        row = conn.execute("SELECT value FROM memory_schema WHERE key='version'").fetchone()
+        return int(row[0]) if row else 0
+    return conn.execute("PRAGMA user_version").fetchone()[0] or 0
+
+
+def _connect(db_path: str | None = None):
+    """显式 db_path 时走 SQLite（测试/本地）；否则 DATABASE_URL 存在就走 Postgres。"""
+    if _pg_enabled(db_path):
+        if psycopg is None:
+            raise RuntimeError(
+                "DATABASE_URL 已配置但未安装 psycopg（pip install 'psycopg[binary]'）"
+            )
+        conn = psycopg.connect(config.DATABASE_URL)
+        _ensure_postgres(conn)
+        return conn
+    conn = db.connect(db_path or config.MEMORY_DB, timeout=15)
+    conn.executescript(SCHEMA_SQLITE)
+    _migrate_sqlite(conn)
     return conn
 
 
@@ -115,20 +193,24 @@ def lookup(subquestions: list, *, db_path: str | None = None, threshold: float |
     threshold = config.MEMORY_SIMILARITY_THRESHOLD if threshold is None else threshold
     max_age_days = config.MEMORY_MAX_AGE_DAYS if max_age_days is None else max_age_days
     cutoff = datetime.now() - timedelta(days=max_age_days)
+    pg = _pg_enabled(db_path)
 
     try:
-        conn = _connect(db_path or config.MEMORY_DB)
-    except sqlite3.Error:
+        conn = _connect(db_path)
+    except _DB_ERRORS:
         return {}
 
     try:
         rows = conn.execute(
-            """
-            SELECT id, topic, subquestion, note, sources, updated_at, used_count
-            FROM research_memory
-            ORDER BY updated_at DESC
-            LIMIT ?
-            """,
+            _q(
+                """
+                SELECT id, topic, subquestion, note, sources, updated_at, used_count
+                FROM research_memory
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                pg,
+            ),
             (max_rows,),
         ).fetchall()
     finally:
@@ -192,23 +274,28 @@ def remember(topic: str, notes: list, *, db_path: str | None = None) -> int:
     if not rows:
         return 0
 
+    pg = _pg_enabled(db_path)
     try:
-        conn = _connect(db_path or config.MEMORY_DB)
-    except sqlite3.Error:
+        conn = _connect(db_path)
+    except _DB_ERRORS:
         return 0
 
     try:
-        conn.executemany(
-            """
-            INSERT INTO research_memory (
-                topic, topic_norm, subquestion, subquestion_norm,
-                note, sources, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (topic_norm, subquestion_norm) DO UPDATE SET
-                note = excluded.note,
-                sources = excluded.sources,
-                updated_at = excluded.updated_at
-            """,
+        _executemany(
+            conn,
+            _q(
+                """
+                INSERT INTO research_memory (
+                    topic, topic_norm, subquestion, subquestion_norm,
+                    note, sources, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (topic_norm, subquestion_norm) DO UPDATE SET
+                    note = excluded.note,
+                    sources = excluded.sources,
+                    updated_at = excluded.updated_at
+                """,
+                pg,
+            ),
             rows,
         )
         conn.commit()
@@ -224,14 +311,20 @@ def mark_used(ids: list, *, db_path: str | None = None) -> int:
     if not ids:
         return 0
 
+    pg = _pg_enabled(db_path)
     try:
-        conn = _connect(db_path or config.MEMORY_DB)
-    except sqlite3.Error:
+        conn = _connect(db_path)
+    except _DB_ERRORS:
         return 0
 
     try:
-        conn.executemany(
-            "UPDATE research_memory SET used_count = used_count + 1, last_used_at = ? WHERE id = ?",
+        _executemany(
+            conn,
+            _q(
+                "UPDATE research_memory SET used_count = used_count + 1, last_used_at = ? "
+                "WHERE id = ?",
+                pg,
+            ),
             [(_now(), i) for i in ids],
         )
         conn.commit()
@@ -243,9 +336,10 @@ def mark_used(ids: list, *, db_path: str | None = None) -> int:
 
 def stats(*, db_path: str | None = None) -> dict:
     """记忆库概况：条目数、被复用过的条目数、命中次数、最老/最新时间。"""
+    pg = _pg_enabled(db_path)
     try:
-        conn = _connect(db_path or config.MEMORY_DB)
-    except sqlite3.Error:
+        conn = _connect(db_path)
+    except _DB_ERRORS:
         return {"entries": 0, "used_entries": 0, "total_hits": 0, "schema_version": 0}
 
     try:
@@ -256,7 +350,7 @@ def stats(*, db_path: str | None = None) -> dict:
             FROM research_memory
             """
         ).fetchone()
-        version = conn.execute("PRAGMA user_version").fetchone()[0] or 0
+        version = _schema_version(conn, pg)
     finally:
         conn.close()
 
@@ -270,15 +364,63 @@ def stats(*, db_path: str | None = None) -> dict:
     }
 
 
+_EXPORT_COLUMNS = (
+    "topic", "topic_norm", "subquestion", "subquestion_norm",
+    "note", "sources", "created_at", "updated_at", "used_count", "last_used_at",
+)
+
+
+def export_all(*, db_path: str) -> list[tuple]:
+    """导出 SQLite 记忆库全部记录（用于迁移到 Postgres）。"""
+    conn = _connect(db_path)
+    try:
+        return conn.execute(
+            f"SELECT {', '.join(_EXPORT_COLUMNS)} FROM research_memory"
+        ).fetchall()
+    finally:
+        conn.close()
+
+
+def import_all(rows: list[tuple], *, db_path: str | None = None) -> int:
+    """把 export_all 的记录 upsert 到目标库；db_path=None 时走 DATABASE_URL。"""
+    if not rows:
+        return 0
+    pg = _pg_enabled(db_path)
+    conn = _connect(db_path)
+    try:
+        _executemany(
+            conn,
+            _q(
+                f"""
+                INSERT INTO research_memory ({', '.join(_EXPORT_COLUMNS)})
+                VALUES ({', '.join(['?'] * len(_EXPORT_COLUMNS))})
+                ON CONFLICT (topic_norm, subquestion_norm) DO UPDATE SET
+                    note = excluded.note,
+                    sources = excluded.sources,
+                    updated_at = excluded.updated_at,
+                    used_count = excluded.used_count,
+                    last_used_at = excluded.last_used_at
+                """,
+                pg,
+            ),
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return len(rows)
+
+
 def reset(*, db_path: str | None = None) -> int:
     """清空记忆库（评测前重置，保证两批次起点一致）。"""
+    pg = _pg_enabled(db_path)
     try:
-        conn = _connect(db_path or config.MEMORY_DB)
-    except sqlite3.Error:
+        conn = _connect(db_path)
+    except _DB_ERRORS:
         return 0
 
     try:
-        deleted = conn.execute("DELETE FROM research_memory").rowcount
+        deleted = conn.execute(_q("DELETE FROM research_memory", pg)).rowcount
         conn.commit()
     finally:
         conn.close()

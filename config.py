@@ -27,6 +27,9 @@ LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
 LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
 
+# ==== 存储（默认 SQLite；配置 DATABASE_URL 后 checkpoint/memory 走 Postgres）====
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
 # ==== Checkpoint（断点恢复）====
 CHECKPOINT_DB = os.getenv("CHECKPOINT_DB", str(BASE_DIR / "checkpoints.db"))
 # 0 = 不自动清理；>0 时由 maintenance.py prune-checkpoints 按最后 checkpoint 时间清理旧 thread
@@ -214,6 +217,8 @@ def runtime_config_errors() -> list[str]:
         errors.append(f"LLM_MAX_RETRIES 不能为负数（当前 {LLM_MAX_RETRIES}）")
     if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         errors.append(f"LOG_LEVEL={LOG_LEVEL!r} 不支持")
+    if DATABASE_URL and not DATABASE_URL.startswith(("postgresql://", "postgres://")):
+        errors.append("DATABASE_URL 必须以 postgresql:// 或 postgres:// 开头")
     return errors
 
 

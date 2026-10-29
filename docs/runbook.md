@@ -8,7 +8,7 @@
 - 入口：`POST /api/research/stream`、`POST /api/resume/stream`、`GET /api/report/{thread_id}`。
 - 鉴权：`Authorization: Bearer <APP_AUTH_TOKEN>`；可用 `APP_AUTH_TOKENS` 分发多个 token（限流按 token 分桶）；未配置 token 时只允许本机回环访问。
 - 日志：默认 JSON 行到 stdout，关键字段 `request_id` / `thread_id` / `level` / `message`。
-- 数据：`checkpoints.db`（断点）与 `memory.db`（研究档案），都需要持久化。
+- 数据：默认 `checkpoints.db`（断点）与 `memory.db`（研究档案）；设置 `DATABASE_URL` 后两者都在 Postgres。
 - 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）。
 - 运行指标：`GET /metrics`（请求计数 + research 状态；需 token，本机回环可免）。
 - 容器用户：`appuser`（UID 10001），非 root。
@@ -107,6 +107,21 @@ python maintenance.py restore backups/checkpoints-YYYYmmdd-HHMMSS-ffffff.db \
 - 备份使用 sqlite backup API，包含 WAL；不要直接 `cp` 正在写入的 `.db`。
 - `backups/` 可能含研究内容，限制目录权限；生产建议加密存储。
 - 建议 cron / Task Scheduler 每天备份、每周清理。
+
+### Postgres 模式
+
+```bash
+# 备份/恢复
+pg_dump -Fc "$DATABASE_URL" > backups/deep_research-$(date +%F).dump
+pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-29.dump
+
+# SQLite 研究档案迁移到 Postgres（旧 checkpoint 不迁移，先让在途任务完成）
+python maintenance.py migrate-memory --from memory.db --database-url "$DATABASE_URL"
+```
+
+- `maintenance.py backup/prune/restore` 只维护 SQLite；`DATABASE_URL` 启用时会显式拒绝。
+- Postgres checkpoint 保留策略尚未内置（P1.2），需按 `checkpoints` 表时间制定清理。
+- 切换存储前先停服务、备份 SQLite 与 Postgres 两侧。
 
 ## 6. 密钥轮换
 

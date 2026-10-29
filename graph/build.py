@@ -82,7 +82,33 @@ def _route_after_verify(state: ResearchState) -> str:
     return "planner"
 
 
-def make_checkpointer() -> SqliteSaver:
+_pg_pool = None
+
+
+def make_checkpointer():
+    """默认 SQLite；配置 DATABASE_URL 后使用 PostgresSaver（连接池进程级复用）。"""
+    if config.DATABASE_URL.strip():
+        try:
+            from langgraph.checkpoint.postgres import PostgresSaver
+            from psycopg_pool import ConnectionPool
+        except ImportError as exc:  # pragma: no cover - 依赖缺失
+            raise RuntimeError(
+                "DATABASE_URL 已配置但缺少 Postgres 依赖："
+                "pip install 'langgraph-checkpoint-postgres' 'psycopg[binary]' 'psycopg-pool'"
+            ) from exc
+        global _pg_pool
+        if _pg_pool is None:
+            _pg_pool = ConnectionPool(
+                conninfo=config.DATABASE_URL,
+                min_size=1,
+                max_size=10,
+                open=True,
+                # PostgresSaver.setup() 里有 CREATE INDEX CONCURRENTLY，必须 autocommit
+                kwargs={"autocommit": True},
+            )
+        saver = PostgresSaver(_pg_pool)
+        saver.setup()
+        return saver
     conn = db.connect(config.CHECKPOINT_DB, check_same_thread=False)
     return SqliteSaver(conn)
 
@@ -95,7 +121,7 @@ def thread_config(thread_id: str) -> dict:
     }
 
 
-def build_research_app(checkpointer: SqliteSaver | None = None):
+def build_research_app(checkpointer=None):
     g = StateGraph(ResearchState)
     g.add_node("coordinator", _bind_run(coordinator.coordinator), retry_policy=_NODE_RETRY)
     g.add_node("review_brief", _bind_run(review.review_brief))

@@ -1,0 +1,30 @@
+# 可选 Postgres profile：
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+# 生产建议把 DATABASE_URL 指向外部托管 Postgres，而不是使用这里的本地实例。
+services:
+  postgres-app:
+    image: postgres:16-alpine
+    container_name: research-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: deep_research
+    volumes:
+      - postgres_app_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d deep_research"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    environment:
+      # 如自定义密码/外部库，请显式设置 DATABASE_URL
+      DATABASE_URL: ${DATABASE_URL:-postgresql://app:app@postgres-app:5432/deep_research}
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+
+volumes:
+  postgres_app_data:

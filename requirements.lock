@@ -30,7 +30,8 @@ langchain-core==1.6.3
 langchain-protocol==0.0.19
 langfuse==4.15.2
 langgraph==1.2.11
-langgraph-checkpoint==4.2.0
+langgraph-checkpoint==4.3.1
+langgraph-checkpoint-postgres==3.2.0
 langgraph-checkpoint-sqlite==3.1.1
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.4
@@ -53,6 +54,9 @@ pluggy==1.6.0
 primp==2.0.0
 prometheus_client==0.26.0
 protobuf==7.36.1
+psycopg==3.3.6
+psycopg-binary==3.3.6
+psycopg-pool==3.3.3
 pydantic_core==2.46.5
 pydantic==2.13.5
 Pygments==2.21.0
@@ -70,6 +74,7 @@ tenacity==9.1.4
 truststore==0.10.4
 typing_extensions==4.16.0
 typing-inspection==0.4.4
+tzdata==2026.6
 urllib3==2.7.0
 uuid_utils==0.17.1
 uvicorn==0.52.4
