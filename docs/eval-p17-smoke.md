@@ -123,6 +123,25 @@ baseline q01 正文实际 **0 条引用**，同模型 judge 仍给了 citation_q
 
 单题结果，不是完整批次。API 模型明显比本地 qwen 慢、token 更多；下一步应先确认成本和延迟是否可接受，再跑 smoke 10。
 
+## Agent + flash 单题 smoke
+
+配置：`AGENT_MODE=on`、研究 `deepseek/deepseek-v4-flash`、judge `deepseek/deepseek-v4-pro`（`commandcode`）、1×1。
+
+| 指标 | 值 |
+|---|---:|
+| faithfulness / coverage / citation_quality | 4 / 3 / 4 |
+| must_cover_coverage | 1.0 |
+| citation_validity | 1.0 |
+| source_utilization | 0.867 |
+| 引用数 / 来源数 | 未打印 / — |
+| LLM tokens 输入/输出 | 34972 / 26151 |
+| 耗时 | 483.6s |
+| 研究成本估算 | $0.038 |
+
+结果：Agent 路径跑通，引用质量从上一轮的 3 提升到 4；仍有 2 个降级：fetch 熔断、writer 审稿的 JSON 调用 400（已捕获，报告仍生成）。
+
+Qwen Flash 本地 judge 曾在 10 分钟内无结果，不再作为默认 judge；judge 改用 `cmdc`（子进程超时 240s）。`LLM_CALL_TIMEOUT_S=300`，单次模型调用超过 5 分钟即失败，不再无限等待。
+
 ## API 3 题尝试（中止）
 
 尝试 `--suite smoke --limit 3`：

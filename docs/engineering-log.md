@@ -331,9 +331,13 @@
 - verifier：可调用 `search` / `fetch` 交叉核对，再返回 conflicts/gaps；无笔记时仍零调用。
 - writer：保持引用编号/来源确定性，增加 critique → revise，最多 `AGENT_WRITER_REVISIONS` 轮。
 - 配置：`AGENT_MODE=on|legacy`、`AGENT_MAX_STEPS`、`AGENT_VERIFIER_MAX_STEPS`、`AGENT_WRITER_REVISIONS`；默认 on，旧测试用 autouse legacy fixture。
-- 验证：193 SQLite tests；`tests/test_agents.py` 覆盖三个 Agent；现有 graph/citation/grounding/prompt-safety 测试全部通过。
+- 验证：194 SQLite tests；`tests/test_agents.py` 覆盖三个 Agent；现有 graph/citation/grounding/prompt-safety 测试全部通过。
 - 限制：仍是 supervisor workflow + 受限 Agent worker；verifier 还不能直接给 researcher 发补证据消息，这是下一步。
 - 文档：`docs/agent-architecture.md`。
+- Agent 真实 smoke（q01）：`deepseek/deepseek-v4-flash` 研究 + `cmdc deepseek/deepseek-v4-pro` judge，4/3/4、must_cover 1.0、citation_validity 1.0、source_utilization 0.867，483.6s，tokens 34972/26151，成本估算 $0.038。
+- 降级：fetch 熔断 + writer 审稿 JSON 调用 400（已捕获）；新增 JSON mode 400 去掉 `response_format` 重试一次。
+- Judge 策略：Qwen Flash 本地 judge 卡住超过 10 分钟，弃用；默认 `JUDGE_PROVIDER=commandcode`，子进程 timeout 240s；`LLM_CALL_TIMEOUT_S=300`。
+- 验证：194 SQLite tests。
 
 ## 3. 路线状态
 

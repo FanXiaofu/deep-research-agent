@@ -372,7 +372,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 193 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、API 空响应、Agent 动作循环、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 194 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、API 空响应、JSON mode 400 回退、Agent 动作循环、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -440,6 +440,7 @@ python -m pytest tests -q     # 193 个用例 + 6 个集成用例（4 Postgres /
 - [x] **评测集 v2**：扩充到 110 题——80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial；`run_eval.py --suite` 分层运行
   - 说明与用法见 [docs/eval-dataset.md](docs/eval-dataset.md)；同 judge 的 110 题仍不能替代独立强 judge
 - [x] **多 Agent 循环**：researcher 支持 search/fetch/final 工具循环；verifier 可主动 search/fetch 核对；writer 增加 critique/revise；全部有步数/预算上限，Agent 失败回落 legacy
+  - 真实单题 smoke：flash 研究 + `cmdc` judge，4/3/4，483.6s；Qwen Flash judge 卡住已弃用，单次 LLM 超时 300s
   - 设计、边界和与完全自治多 Agent 的差距见 [docs/agent-architecture.md](docs/agent-architecture.md)
 
 ## 评测体系（W3）

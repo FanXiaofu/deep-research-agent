@@ -106,7 +106,14 @@ def chat(
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
     kwargs["timeout"] = _request_timeout()
-    resp = get_client().chat.completions.create(**kwargs)
+    try:
+        resp = get_client().chat.completions.create(**kwargs)
+    except Exception as exc:  # 某些兼容端点不支持 response_format，去掉后重试一次
+        if not json_mode or getattr(exc, "status_code", None) != 400:
+            raise
+        logger.warning("JSON mode 被 provider 拒绝（400），去掉 response_format 重试")
+        kwargs.pop("response_format", None)
+        resp = get_client().chat.completions.create(**kwargs)
     usage = getattr(resp, "usage", None)
     if usage is not None:
         pt = int(getattr(usage, "prompt_tokens", 0) or getattr(usage, "input_tokens", 0) or 0)

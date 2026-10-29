@@ -98,4 +98,6 @@ python -m pytest tests/test_agents.py -q
 python -m pytest tests -q
 ```
 
-当前：193 个 SQLite 测试通过；6 个 Postgres/Redis 集成测试需要对应服务 URL。
+当前：194 个 SQLite 测试通过；6 个 Postgres/Redis 集成测试需要对应服务 URL。
+
+真实单题 smoke（q01）：`deepseek/deepseek-v4-flash` + `cmdc deepseek/deepseek-v4-pro`，4/3/4，483.6s，成本估算 $0.038。Qwen Flash 本地 judge 在 10 分钟内无结果，已弃用；judge 子进程超时 240s，单次 LLM 调用超时 300s。
