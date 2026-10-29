@@ -104,8 +104,10 @@
 - 验证：
   - `docker build` 成功，镜像 413MB；
   - 容器内 `/healthz` 返回 200；`nh3 / langgraph / fastapi` 导入正常；
-  - CI YAML 解析出 `test`、`docker` 两个 job；`pytest` 仍为 138 passed。
-- 遗留：CI 尚未在 GitHub Actions 上实际跑过（配置推送后触发）；升级/回滚 runbook、非 root 容器、结构化日志/指标仍未做。
+  - GitHub Actions run #1（`5148414`）`test` + `docker` 两个 job 均成功：
+    https://github.com/FanXiaofu/deep-research-agent/actions/runs/40815035190
+  - 本地 `pytest` 仍为 138 passed。
+- 遗留：升级/回滚 runbook、非 root 容器、结构化日志/指标仍未做。
 - 提交：`dd5ca26`。
 
 ## 3. 路线状态
@@ -147,7 +149,7 @@
 - 报告引用在运行时没有后校验；越界 `[n]` 目前只能靠评测发现（R10 待做）。
 - LLM judge 与研究共用同一模型时存在系统性偏差；对外数字需更强模型复评。
 - 评测 A/B 曾同时调整 4 个参数，0.82→1.00 不能单独归因于“代码生成引用编号”（baseline 已有注册表）；README 已修正口径。
-- 结构化日志/指标、非 root 容器、升级/回滚 runbook 仍未做；CI 已配置但尚未在 GitHub Actions 上实跑确认。
+- 结构化日志/指标、非 root 容器、升级/回滚 runbook 仍未做；CI 已在 GitHub Actions 实跑通过（run #1）。
 
 ## 6. 复现与验证
 
