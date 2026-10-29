@@ -22,3 +22,9 @@ def _disable_langfuse(monkeypatch):
 def _isolate_auth_db(monkeypatch, tmp_path):
     """每个测试用独立 auth.db，避免用户/配额/审计互相污染。"""
     monkeypatch.setattr(config, "AUTH_DB", str(tmp_path / "auth.db"))
+
+
+@pytest.fixture(autouse=True)
+def _legacy_agent_for_existing_tests(monkeypatch):
+    """既有测试断言旧 workflow 的调用次数/输出；Agent 专项测试会显式改回 on。"""
+    monkeypatch.setattr(config, "AGENT_MODE", "legacy")

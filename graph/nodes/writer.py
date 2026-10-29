@@ -15,7 +15,7 @@ import reliability
 import safety
 from citations import strip_reference_section, validate_report
 from graph.state import ResearchState, effective_notes
-from llm.client import chat_safe
+from llm.client import chat_json_safe, chat_safe
 from untrusted import GUARD
 
 
@@ -66,6 +66,53 @@ def _strip_preamble(text: str) -> str:
         if line.startswith("# "):
             return "\n".join(lines[i:]).strip()
     return text.strip()
+
+
+REVISE_PROMPT = """你是报告修订 Agent。{guard}
+以下是一篇 Markdown 研究报告：
+{report}
+
+审稿意见：
+{instructions}
+
+请在保持原有引用编号 [n] 与来源链接不变的前提下修订报告；不要新增无法由笔记支持的事实，
+不要输出"参考来源"章节。直接输出修订后的 Markdown 正文。"""
+
+
+def _agent_revise(report: str, state: ResearchState) -> str:
+    """WriterAgent 的有界 critique→revise 循环；最多修订配置轮数。"""
+    for _ in range(config.AGENT_WRITER_REVISIONS):
+        decision = chat_json_safe(
+            [{
+                "role": "user",
+                "content": (
+                    "你是报告审稿 Agent。检查这篇报告是否遗漏关键维度、引用是否不足、"
+                    "是否存在无依据论断。若需要修改，输出 "
+                    '{"action":"revise","instructions":"具体修改要求"}；'
+                    '否则输出 {"action":"final"}。\n\n' + GUARD + "\n\n" + report
+                ),
+            }],
+            fallback={},
+            what="报告审稿",
+            temperature=0.1,
+        )
+        if not isinstance(decision, dict) or decision.get("action") != "revise":
+            break
+        instructions = str(decision.get("instructions") or "").strip()
+        if not instructions:
+            break
+        revised = chat_safe(
+            [{"role": "user", "content": REVISE_PROMPT.format(
+                guard=GUARD, report=report, instructions=instructions,
+            )}],
+            fallback="",
+            what="报告修订",
+            temperature=0.3,
+        )
+        if not revised.strip():
+            break
+        report = _strip_preamble(revised)
+    return report
 
 
 def _fallback_report(state: ResearchState, notes: list[dict]) -> str:
@@ -176,8 +223,11 @@ def writer(state: ResearchState) -> dict:
             temperature=0.4,
         )
     )
+    generated = bool(report)
     if not report:
         report = _fallback_report(state, notes)
+    if config.AGENT_MODE == "on" and generated:
+        report = _agent_revise(report, state)
     # 小模型可能无视“不要输出参考来源”的指令；统一剥离，避免出现两份来源清单，
     # 也保证后面的引用/证据审计覆盖完整正文。
     report = strip_reference_section(report)

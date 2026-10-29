@@ -7,6 +7,9 @@
 
 两个 human-in-the-loop 点位都可用 REVIEW_POINTS 开关（brief/plan），关掉时不产生中断。
 
+P2 起 researcher / verifier / writer 内部可用有界 Agent 循环（AGENT_MODE=on）；
+图的拓扑、预算、checkpoint 和 HITL 仍由这个 supervisor workflow 控制。
+
 四个长流程控制点：
 - 预算闸门：planner / researcher 在开新分支前查全局预算，超限则把原因写入状态，
   路由据此跳过并行检索，直接收敛到 writer（保证"预算耗尽也有报告"）；

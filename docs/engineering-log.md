@@ -324,6 +324,17 @@
 - API 3 题尝试中止：q01 fallback（API 空 choices，引用有效性 0）、q02 judge 超时（908.9s）、q03 主动停止；修复空 choices 的 TypeError，但 Pro + Qwen Max + 3 次 judge 组合太慢，下一轮改用 flash 模型/更轻 judge。
 - 提交：`f7f40e3`。
 
+### 多 Agent 化（P2）
+
+- 新增 `graph/agents.py`：JSON 动作协议循环，不依赖 provider 原生 tool calling；工具白名单、预算检查、不可信 observation 包裹、最多步数。
+- researcher：`search` / `fetch` / `final`，由模型决定检索、抓取与收尾；并行 `Send` 不变，失败回落旧检索循环。
+- verifier：可调用 `search` / `fetch` 交叉核对，再返回 conflicts/gaps；无笔记时仍零调用。
+- writer：保持引用编号/来源确定性，增加 critique → revise，最多 `AGENT_WRITER_REVISIONS` 轮。
+- 配置：`AGENT_MODE=on|legacy`、`AGENT_MAX_STEPS`、`AGENT_VERIFIER_MAX_STEPS`、`AGENT_WRITER_REVISIONS`；默认 on，旧测试用 autouse legacy fixture。
+- 验证：193 SQLite tests；`tests/test_agents.py` 覆盖三个 Agent；现有 graph/citation/grounding/prompt-safety 测试全部通过。
+- 限制：仍是 supervisor workflow + 受限 Agent worker；verifier 还不能直接给 researcher 发补证据消息，这是下一步。
+- 文档：`docs/agent-architecture.md`。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -345,6 +356,7 @@
 | P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；Command Code judge 已接入，110 题独立复评未跑 |
 | 评测集 v2 | 完成 | 110 题分层：80 core + 30 adversarial；suite 过滤 |
 | Command Code 独立 judge | 完成 smoke 10 | `JUDGE_PROVIDER=commandcode`；Go 模型 headless；均分 3.6/2.7/2.4 |
+| 多 Agent 循环 | 完成代码/测试 | researcher/verifier/writer 有界 Agent；`AGENT_MODE=legacy` 可回滚 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 

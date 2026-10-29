@@ -14,6 +14,7 @@ from typing import TypedDict
 import config
 import reliability
 from budget import BUDGET
+from graph.agents import run_agent
 from fetch import fetch_page
 from graph.state import Note, Source, effective_max_search_rounds
 from llm.client import chat_json_safe
@@ -141,11 +142,92 @@ def _research_one(provider: SearchProvider, subquestion: str, max_rounds: int) -
     }, blocked
 
 
+def _agent_research(
+    provider: SearchProvider, subquestion: str, max_rounds: int
+) -> tuple[Note, str] | None:
+    """有界 ResearchAgent：模型自己决定搜索、抓取、何时收尾。"""
+    used: dict[str, Source] = {}
+    seen: set[str] = set()
+
+    def search(data: dict) -> dict:
+        query = str(data.get("query") or subquestion).strip()
+        results, failed = reliability.call_guarded(
+            "search",
+            lambda: provider.search(query, config.MAX_RESULTS_PER_SEARCH),
+            attempts=config.SEARCH_RETRIES,
+            default=[],
+            what=f"搜索「{query[:24]}」",
+        )
+        if failed:
+            return {"error": "搜索失败", "results": []}
+        fresh = [r for r in results if r.url and r.url not in seen]
+        for r in fresh:
+            seen.add(r.url)
+            used[r.url] = {
+                "title": r.title or r.url,
+                "url": r.url,
+                "excerpt": (r.snippet or "")[:500],
+            }
+        return {
+            "results": [
+                {"title": r.title, "url": r.url, "snippet": (r.snippet or "")[:300]}
+                for r in fresh
+            ]
+        }
+
+    def fetch(data: dict) -> dict:
+        url = str(data.get("url") or "").strip()
+        if not url:
+            return {"error": "缺少 url"}
+        if url not in seen:
+            return {"error": "只能抓取 search 返回过的 url"}
+        page = fetch_page(url)
+        if not page.ok:
+            return {"error": "抓取失败", "url": url}
+        used.setdefault(url, {"title": url, "url": url, "excerpt": page.text[:500]})
+        return {"url": url, "text": page.text[: config.RESEARCH_PAGE_CHARS]}
+
+    final = run_agent(
+        role="ResearchAgent",
+        task=(
+            f"研究子问题：{subquestion}\n"
+            f"先用 search 找资料，再按需 fetch 正文，最后用 final 交回 "
+            f"{config.NOTE_MIN_CHARS}~{config.NOTE_MAX_CHARS} 字中文笔记。"
+            "笔记中的关键结论只能引用你实际看过的 url，并使用 markdown 链接。"
+        ),
+        tool_specs=[
+            '{"action":"search","query":"检索词"}',
+            '{"action":"fetch","url":"https://..."}',
+            '{"action":"final","content":"笔记正文","sufficient":true}',
+        ],
+        tools={"search": search, "fetch": fetch},
+        max_steps=max(2, min(config.AGENT_MAX_STEPS, max_rounds * 2)),
+    )
+    if not final:
+        return None
+    content = str(final.get("content") or "").strip()
+    if not content:
+        return None
+    blocked = str(final.get("reason") or "") if final.get("action") == "budget_exceeded" else ""
+    return {
+        "subquestion": subquestion,
+        "content": content,
+        "sources": list(used.values()),
+    }, blocked
+
+
 def research_one(state: ResearcherInput) -> dict:
     provider = get_search_provider()
-    note, blocked = _research_one(
-        provider, state["subquestion"], effective_max_search_rounds(state)
-    )
+    subquestion = state["subquestion"]
+    max_rounds = effective_max_search_rounds(state)
+    note, blocked = None, ""
+    if config.AGENT_MODE == "on":
+        result = _agent_research(provider, subquestion, max_rounds)
+        if result:
+            note, blocked = result
+    if note is None:
+        # Agent 不可用/未按协议收尾时回落到旧的确定性检索循环。
+        note, blocked = _research_one(provider, subquestion, max_rounds)
     out: dict = {"notes": [note]}
     if blocked:  # 只在超限时写该字段：并行分支用空串覆盖会抹掉真实原因
         out["budget_exceeded"] = blocked

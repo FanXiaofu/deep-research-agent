@@ -132,6 +132,13 @@ NOTE_MIN_CHARS = int(os.getenv("NOTE_MIN_CHARS", "200"))             # 研究笔
 NOTE_MAX_CHARS = int(os.getenv("NOTE_MAX_CHARS", "350"))             # 研究笔记字数上限
 WRITER_STRICT_GROUNDING = os.getenv("WRITER_STRICT_GROUNDING", "0") == "1"  # writer 严格 grounding 规则
 
+# ==== Agent 运行时（P2）====
+# on：researcher/verifier/writer 走有界 JSON 动作循环；legacy：保留旧 workflow 实现
+AGENT_MODE = os.getenv("AGENT_MODE", "on").lower()
+AGENT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "6"))
+AGENT_VERIFIER_MAX_STEPS = int(os.getenv("AGENT_VERIFIER_MAX_STEPS", "4"))
+AGENT_WRITER_REVISIONS = int(os.getenv("AGENT_WRITER_REVISIONS", "1"))
+
 # ==== 证据支撑审计（P1.6）====
 # 词面覆盖默认开启（纯本地、零成本）；配置 judge 模型后才追加语义判定。
 GROUNDING_AUDIT_ENABLED = os.getenv("GROUNDING_AUDIT_ENABLED", "1") == "1"
@@ -259,6 +266,12 @@ def runtime_config_errors() -> list[str]:
         )
     if JUDGE_PROVIDER not in {"local", "commandcode"}:
         errors.append(f"JUDGE_PROVIDER={JUDGE_PROVIDER!r} 不支持（local/commandcode）")
+    if AGENT_MODE not in {"on", "legacy"}:
+        errors.append(f"AGENT_MODE={AGENT_MODE!r} 不支持（on/legacy）")
+    if AGENT_MAX_STEPS < 1 or AGENT_VERIFIER_MAX_STEPS < 1:
+        errors.append("AGENT_MAX_STEPS / AGENT_VERIFIER_MAX_STEPS 必须 >= 1")
+    if AGENT_WRITER_REVISIONS < 0:
+        errors.append("AGENT_WRITER_REVISIONS 不能为负数")
     if GROUNDING_MAX_CLAIMS < 0:
         errors.append(f"GROUNDING_MAX_CLAIMS 不能为负数（当前 {GROUNDING_MAX_CLAIMS}）")
     if not 0 <= GROUNDING_LEXICAL_THRESHOLD <= 1:
