@@ -144,8 +144,8 @@ docker compose up -d
 
 ## CI 与可复现构建（E1）
 
-- `requirements.lock`：85 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
-- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）。
+- `requirements.lock`：86 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
+- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）、`redis`（共享限流/指标集成测试）。
 - `Dockerfile` 用 `requirements.lock` 安装，并内置 `/healthz` HEALTHCHECK。
 - 本地构建：`docker build -t deep-research-agent .`；国内网络可加 `--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`。
 
@@ -164,7 +164,23 @@ python maintenance.py migrate-memory --from memory.db \
 
 - 首次连接会自动建 `research_memory`、`memory_schema` 与 LangGraph checkpoint 表；
 - `maintenance.py backup/prune/restore` 只维护 SQLite；Postgres 用 `pg_dump` / `pg_restore`；
-- 多实例时 checkpoint 与 memory 已可共享，但限流/指标仍是进程级，水平扩展前还需 Redis/负载均衡。
+- 多实例时 checkpoint 与 memory 已可共享；限流/指标可切 Redis，见下一节。
+
+## Redis 共享状态（P1.2）
+
+设置 `REDIS_URL` 后：
+
+- 限流从“单进程内存”切到 Redis 固定窗口，按 token/IP 分桶，多实例共享同一份额度；
+- `/metrics` 从 Redis 汇总 HTTP 请求、research started/finished/active，Prometheus 抓任意实例都能看到全局计数；
+- Redis 故障时自动回退进程内限流/指标，并写 warning，不会让请求直接失守。
+
+```bash
+# 与 Postgres 一起启动
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.redis.yml up -d
+```
+
+- Redis 只存限流窗口与指标计数，不落地研究数据；不需要持久卷。
+- 多实例仍需负载均衡、SSE 超时与账号/RBAC，见 `docs/production.md`。
 
 ## 数据维护（C1）
 
@@ -234,6 +250,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
 | `OLLAMA_NUM_CTX` / `LLM_NATIVE_OLLAMA` | Ollama 原生路径的上下文窗口与开关（原生 `/api/chat` 才能关掉 qwen3 thinking）；提示词逼近上限时在 stderr 告警 |
 | `DATABASE_URL` | 配置后 checkpoint 与 memory 走 Postgres；留空使用 SQLite。例：`postgresql://app:app@127.0.0.1:5432/deep_research` |
+| `REDIS_URL` | 配置后限流与指标写入 Redis，多实例共享；留空使用进程内实现 |
 | `CHECKPOINT_DB` | SQLite checkpoint 文件路径（默认 `checkpoints.db`）；容器部署时应放到持久化卷 |
 | `CHECKPOINT_RETENTION_DAYS` | checkpoint 保留天数（默认 7；0=不清理），由 `maintenance.py prune-checkpoints` 执行 |
 | `LLM_PRICE_INPUT_PER_M` / `LLM_PRICE_OUTPUT_PER_M` | 成本估算单价（USD / 1M tokens）；本地 Ollama 想显示 0 成本时显式设为 0 |
@@ -292,7 +309,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 158 个用例 + 3 个 Postgres 用例（未配置 TEST_DATABASE_URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres 存储
+python -m pytest tests -q     # 158 个用例 + 5 个集成用例（3 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -340,7 +357,9 @@ python -m pytest tests -q     # 158 个用例 + 3 个 Postgres 用例（未配�
 - [x] **P0 生产化切片**：多 token + 按 token 限流；Prometheus 文本指标；CI 增加容器 runtime job（健康检查 + 非 root）；Caddy TLS 反代示例与 [docs/production.md](docs/production.md)
   - 测试 158 个；单实例公网服务目标；多实例的 Redis/RBAC 明确列为 P1
 - [x] **P1.1 Postgres 后端**：checkpoint/memory 支持 `DATABASE_URL`（SQLite fallback）；自动建表；`migrate-memory` 迁移研究档案；CI 增加 Postgres service job；compose 可选 Postgres profile
-  - Postgres 集成测试 3 个通过；旧 checkpoint 不迁移，切换前需让在途任务完成；限流/指标仍为进程级
+  - Postgres 集成测试 3 个通过；旧 checkpoint 不迁移，切换前需让在途任务完成
+- [x] **P1.2 Redis 共享状态**：`REDIS_URL` 启用 Redis 限流与指标聚合；Redis 故障回退进程内；CI 增加 redis service job；可选 compose profile
+  - Redis 集成测试 2 个；多实例仍需负载均衡、SSE 超时与账号/RBAC
 
 ## 评测体系（W3）
 

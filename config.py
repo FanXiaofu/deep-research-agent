@@ -29,6 +29,8 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
 
 # ==== 存储（默认 SQLite；配置 DATABASE_URL 后 checkpoint/memory 走 Postgres）====
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+# 多实例共享限流与指标；留空使用进程内实现
+REDIS_URL = os.getenv("REDIS_URL", "")
 
 # ==== Checkpoint（断点恢复）====
 CHECKPOINT_DB = os.getenv("CHECKPOINT_DB", str(BASE_DIR / "checkpoints.db"))
@@ -219,6 +221,8 @@ def runtime_config_errors() -> list[str]:
         errors.append(f"LOG_LEVEL={LOG_LEVEL!r} 不支持")
     if DATABASE_URL and not DATABASE_URL.startswith(("postgresql://", "postgres://")):
         errors.append("DATABASE_URL 必须以 postgresql:// 或 postgres:// 开头")
+    if REDIS_URL and not REDIS_URL.startswith(("redis://", "rediss://")):
+        errors.append("REDIS_URL 必须以 redis:// 或 rediss:// 开头")
     return errors
 
 

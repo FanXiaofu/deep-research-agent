@@ -15,12 +15,13 @@ Caddy（TLS 自动证书、HSTS、CSP、SSE 不缓冲）
 app 容器（uvicorn，非 root UID 10001）
   ├─ DATABASE_URL 存在 → Postgres（checkpoint + memory）
   ├─ 否则 → ./data/checkpoints.db + ./data/memory.db（SQLite WAL）
+  ├─ REDIS_URL 存在 → 共享限流 + 指标计数
   └─ Langfuse（可选，自托管或 Cloud）
 ```
 
 - app 只发布到 `127.0.0.1:8000`，不直接对公网暴露。
 - Caddy 负责 80/443、TLS、HSTS、基础安全响应头。
-- 当前不引入 Redis/消息队列；限流与进程指标仍按实例独立。
+- 当前不引入消息队列；限流与指标可切 Redis，多实例共享。
 
 ## 2. 部署前提
 
@@ -44,7 +45,21 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
   `python maintenance.py migrate-memory --from memory.db --database-url <url>`；
 - **旧 checkpoint 不迁移**：切换前让在途研究完成，或接受旧 thread 不能续跑；
 - `maintenance.py backup/prune/restore` 仅维护 SQLite；Postgres 使用 `pg_dump` / `pg_restore`；
-- 多实例时 checkpoint/memory 已共享；限流、metrics、日志仍需 Redis/共享后端，见第 7 节。
+- 多实例时 checkpoint/memory 已共享；限流与 metrics 可再开 Redis profile，见 2.2 节。
+
+## 2.2 Redis 共享状态（P1.2）
+
+```bash
+docker compose -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  -f docker-compose.redis.yml up -d
+```
+
+- `REDIS_URL` 启用 Redis 固定窗口限流（按 token/IP 分桶）与跨实例指标；
+- `/metrics` 从 Redis 汇总，Prometheus 抓任一实例都是全局计数；
+- Redis 故障时自动回退进程内限流/指标并写 warning；
+- Redis 只存限流窗口与指标计数，不持久化研究数据；
+- 多实例仍需负载均衡、SSE 超时与账号/RBAC，见第 7 节。
 
 ## 3. 首次部署
 
@@ -143,17 +158,18 @@ pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-
 - 限流/指标需要跨实例一致；
 - 需要按用户配额、审计与 RBAC。
 
-当前 P1.1 已完成：
+当前已完成：
 
-1. LangGraph checkpointer 换 Postgres（`langgraph-checkpoint-postgres`）；
-2. memory 表迁移到 Postgres（含 `migrate-memory`）。
-
-仍需（P1.2）：
-
+1. LangGraph checkpointer 换 Postgres；
+2. memory 表迁移到 Postgres（含 `migrate-memory`）；
 3. 限流换 Redis；
-4. 指标/日志接共享后端；
-5. 负载均衡 + SSE 超时配置 + 共享会话/数据；
-6. 多租户账号/RBAC/配额。
+4. 指标计数接 Redis（日志仍按实例采集）。
+
+仍需：
+
+5. 多实例负载均衡 + SSE 超时配置；
+6. 多租户账号/RBAC/配额/审计；
+7. 加密备份/异地容灾、镜像扫描、WAF、值班/SLO。
 
 ## 8. 发布与回滚
 
@@ -165,7 +181,7 @@ git status --short          # 必须干净
 docker build -t deep-research-agent:<tag> .
 ```
 
-GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres` 四个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres 跑存储集成测试）。
+GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres`、`redis` 五个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres/redis 跑集成测试）。
 
 发布步骤：
 

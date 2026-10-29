@@ -3,6 +3,7 @@ langgraph-checkpoint-sqlite>=3.0
 langgraph-checkpoint-postgres>=3.0
 psycopg[binary]>=3.1
 psycopg-pool>=3.2
+redis>=5
 langchain-core>=0.3
 ormsgpack>=1.7
 openai>=1.30

@@ -1,0 +1,21 @@
+# 可选 Redis profile（与 Postgres profile 可叠加）：
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.redis.yml up -d
+# 限流与指标会写入 Redis，多实例共享；数据本身不落 Redis。
+services:
+  redis-app:
+    image: redis:7-alpine
+    container_name: research-agent-redis
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  app:
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis-app:6379/0}
+    depends_on:
+      redis-app:
+        condition: service_healthy

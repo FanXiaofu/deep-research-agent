@@ -14,6 +14,11 @@ from fastapi import HTTPException, Request
 
 import config
 
+try:
+    import redis
+except ImportError:  # pragma: no cover - 未安装时回退本地
+    redis = None
+
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 logger = logging.getLogger("deep_research.security")
 
@@ -90,13 +95,57 @@ class RateLimiter:
             )
 
 
-_limiter: RateLimiter | None = None
+class RedisRateLimiter:
+    """Redis 固定窗口限流；Redis 故障时回退进程内限流并留 warning。"""
+
+    def __init__(self, limit_per_minute: int, url: str) -> None:
+        self.limit = max(1, int(limit_per_minute))
+        self.url = url
+        self._fallback = RateLimiter(self.limit)
+        self._client = (
+            redis.from_url(url, decode_responses=True, socket_timeout=1.0)
+            if redis is not None
+            else None
+        )
+
+    def check(self, key: str) -> None:
+        if self._client is None:
+            self._fallback.check(key)
+            return
+        now = time.time()
+        window = int(now // 60)
+        redis_key = f"dr:rate:{window}:{key}"
+        try:
+            pipe = self._client.pipeline()
+            pipe.incr(redis_key)
+            pipe.expire(redis_key, 65)
+            count = int(pipe.execute()[0])
+        except Exception as exc:
+            logger.warning("redis_rate_limit_failed", extra={"client": key})
+            self._fallback.check(key)
+            return
+        if count > self.limit:
+            retry_after = max(1, 60 - int(now % 60))
+            logger.warning("rate_limited", extra={"client": key, "retry_after_s": retry_after})
+            raise HTTPException(
+                status_code=429,
+                detail=f"请求过于频繁（每分钟最多 {self.limit} 次），请稍后重试",
+                headers={"Retry-After": str(retry_after)},
+            )
 
 
-def get_limiter() -> RateLimiter:
+_limiter = None
+
+
+def get_limiter():
     global _limiter
-    if _limiter is None or _limiter.limit != config.APP_RATE_LIMIT_PER_MINUTE:
-        _limiter = RateLimiter(config.APP_RATE_LIMIT_PER_MINUTE)
+    signature = (config.APP_RATE_LIMIT_PER_MINUTE, config.REDIS_URL.strip())
+    if _limiter is None or getattr(_limiter, "_signature", None) != signature:
+        if config.REDIS_URL.strip() and redis is not None:
+            _limiter = RedisRateLimiter(config.APP_RATE_LIMIT_PER_MINUTE, config.REDIS_URL)
+        else:
+            _limiter = RateLimiter(config.APP_RATE_LIMIT_PER_MINUTE)
+        _limiter._signature = signature
     return _limiter
 
 

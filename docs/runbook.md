@@ -9,6 +9,7 @@
 - 鉴权：`Authorization: Bearer <APP_AUTH_TOKEN>`；可用 `APP_AUTH_TOKENS` 分发多个 token（限流按 token 分桶）；未配置 token 时只允许本机回环访问。
 - 日志：默认 JSON 行到 stdout，关键字段 `request_id` / `thread_id` / `level` / `message`。
 - 数据：默认 `checkpoints.db`（断点）与 `memory.db`（研究档案）；设置 `DATABASE_URL` 后两者都在 Postgres。
+- 共享状态：设置 `REDIS_URL` 后限流与指标计数在 Redis，多实例共享。
 - 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）。
 - 运行指标：`GET /metrics`（请求计数 + research 状态；需 token，本机回环可免）。
 - 容器用户：`appuser`（UID 10001），非 root。
@@ -120,8 +121,21 @@ python maintenance.py migrate-memory --from memory.db --database-url "$DATABASE_
 ```
 
 - `maintenance.py backup/prune/restore` 只维护 SQLite；`DATABASE_URL` 启用时会显式拒绝。
-- Postgres checkpoint 保留策略尚未内置（P1.2），需按 `checkpoints` 表时间制定清理。
+- Postgres checkpoint 保留策略尚未内置，需按 `checkpoints` 表时间制定清理。
 - 切换存储前先停服务、备份 SQLite 与 Postgres 两侧。
+
+### Redis 模式
+
+```bash
+# 与 Postgres 一起启动
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.redis.yml up -d
+```
+
+- 限流 key：`dr:rate:<分钟窗口>:<token/IP>`，自然过期；不需要人工清理。
+- 指标 key：`dr:metrics:*`，只存计数，可从零重建。
+- Redis 故障时自动回退进程内限流/指标并写 `redis_*_failed` warning；
+  恢复后 30 秒内自动重试。
+- 不要把 Redis 当业务数据库；研究数据仍在 SQLite/Postgres。
 
 ## 6. 密钥轮换
 
@@ -203,7 +217,8 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 ## 8. 监控建议
 
 - 容器 healthcheck + `/healthz` 探活；
-- `GET /metrics` 输出 Prometheus 文本（请求计数 + research started/finished/failed/active）：
+- `GET /metrics` 输出 Prometheus 文本（请求计数 + research started/finished/failed/active）；
+  配置 `REDIS_URL` 时从 Redis 汇总，多实例一致：
   `curl -H "Authorization: Bearer $APP_AUTH_TOKEN" http://127.0.0.1:8000/metrics`
 - `GET /metrics.json` 输出 JSON 快照，便于人工排查。
 - 日志按 `level=ERROR` 与 `request_id/thread_id` 聚合；
