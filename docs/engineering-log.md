@@ -28,11 +28,12 @@
 | `319693f` | P1.1：Postgres checkpoint/memory + 迁移 + CI postgres job |
 | `2999f8e` | P1.2：Redis 共享限流/指标 + CI redis job |
 | `f97a57e` | P1.3：账号/API token/RBAC/配额/审计 |
+| `c497805` | P1.4：多副本 + Caddy/nginx + `/readyz` + 日志聚合 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `c38e75c`，tag `v0.1.0-audit-baseline` 已推送；P1.3 与本文档更新随后补推；
+- 远端 `main` 已包含到 `6b1fbf4`，tag `v0.1.0-audit-baseline` 已推送；P1.4 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -240,7 +241,7 @@
   - CI 增加 `compose` job，校验生产 compose、Caddyfile 与 nginx。
 - 验证：166 SQLite tests（新增 2 个 `/readyz` 用例）；`caddy validate`、`nginx -t`、生产 compose config 通过；本地实际起 2 副本，nginx 将请求分发到两个 app；停掉 app-1 后 6 次请求仍全 200；扩到 3 副本后请求落到 3 个 app；Caddy 入口 `/readyz` 200。
 - 遗留：没有自动化压测/滚动发布、蓝绿/金丝雀；nginx 只有被动健康检查（无主动探测）；Loki 方案需要 Docker socket；没有 Prometheus/Grafana 自动拉起。
-- 提交：本轮提交。
+- 提交：`c497805`。
 
 ## 3. 路线状态
 
