@@ -4,17 +4,17 @@
 
 | 配置项 | baseline | tuned |
 |---|---|---|
-| llm_model | qwen2.5:7b-instruct | qwen2.5:7b-instruct |
 | llm_base_url | http://localhost:11434/v1 | http://localhost:11434/v1 |
-| max_subquestions | 2 | 2 |
-| max_search_rounds | 1 | 1 |
+| llm_model | qwen2.5:7b-instruct | qwen2.5:7b-instruct |
 | max_results_per_search | 5 | 5 |
-| research_page_chars | 1200 | 2000 ← |
-| note_min_chars | 200 | 300 ← |
+| max_search_rounds | 1 | 1 |
+| max_subquestions | 2 | 2 |
 | note_max_chars | 350 | 450 ← |
-| writer_strict_grounding | False | True ← |
+| note_min_chars | 200 | 300 ← |
 | price_input_per_m | 0.27 | 0.27 |
 | price_output_per_m | 1.1 | 1.1 |
+| research_page_chars | 1200 | 2000 ← |
+| writer_strict_grounding | False | True ← |
 
 ## 指标均值对比
 
@@ -23,10 +23,24 @@
 | 忠实度(1-5) | 4.8 | 4.8 | 0.0 |
 | 覆盖度(1-5) | 4.8 | 4.75 | -0.05 |
 | 引用质量(1-5) | 4.85 | 4.75 | -0.1 |
+| 必覆盖要点覆盖率(0-1) | None | None | - |
 | 引用有效性(0-1) | 0.82 | 1.0 | 0.18 |
 | 来源利用率(0-1) | 0.622 | 0.748 | 0.126 |
 | 单题成本估算($) | 0.004 | 0.005 | 0.001 |
 | 单题耗时(s) | 67.31 | 70.455 | 3.145 |
+
+## 分位数对比
+
+| 指标 | baseline | tuned | Δ |
+|---|---|---|---|
+| 耗时 p50(s) | 63.7 | 72.25 | 8.55 |
+| 耗时 p95(s) | 88.755 | 82.13 | -6.625 |
+| 成本 p50($) | 0.004 | 0.005 | 0.001 |
+| 成本 p95($) | 0.006 | 0.006 | 0.0 |
+| 输入 tokens p50 | 9917.0 | 11796.5 | 1879.5 |
+| 输入 tokens p95 | 12667.75 | 15125.65 | 2457.9 |
+| 输出 tokens p50 | 1291.5 | 1349.0 | 57.5 |
+| 输出 tokens p95 | 1929.15 | 1761.05 | -168.1 |
 
 ## 逐题分数
 
@@ -53,5 +67,5 @@
 | q19 RAG 中的重排序 rerank 是什么 | 5/5/5 | 5/5/5 |
 | q20 用 Hugging Face Trans | 5/5/5 | 5/5/5 |
 
-> judge 模型：`qwen2.5:7b-instruct`（两批次相同）；n=20。
+> judge 模型：`qwen2.5:7b-instruct`（两批次需一致）；n=20。
 > 改进建议：跑全量 20 题、用更强模型复评后再写进简历。

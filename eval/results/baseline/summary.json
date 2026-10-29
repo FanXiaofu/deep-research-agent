@@ -421,10 +421,21 @@
     "faithfulness": 4.8,
     "coverage": 4.8,
     "citation_quality": 4.85,
+    "must_cover_coverage": null,
     "citation_validity": 0.82,
     "source_utilization": 0.622,
     "cost_usd_est": 0.004,
     "elapsed_s": 67.31
   },
-  "recomputed_at": "2026-09-18T00:45:21"
+  "recomputed_at": "2026-10-29T12:26:23",
+  "percentiles": {
+    "elapsed_s_p50": 63.7,
+    "elapsed_s_p95": 88.755,
+    "cost_usd_est_p50": 0.004,
+    "cost_usd_est_p95": 0.006,
+    "input_tokens_p50": 9917.0,
+    "input_tokens_p95": 12667.75,
+    "output_tokens_p50": 1291.5,
+    "output_tokens_p95": 1929.15
+  }
 }

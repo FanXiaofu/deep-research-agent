@@ -192,6 +192,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | 变量 | 说明 |
 |---|---|
 | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | 任意 OpenAI 兼容服务；本地 Ollama 示例见 `.env.example` |
+| `JUDGE_MODEL` | 评测 judge 模型；留空复用 `LLM_MODEL`，建议对外数字用更强模型 |
 | `LLM_CALL_TIMEOUT_S` / `LLM_MAX_RETRIES` | 单次调用上限与重试次数；实际 timeout 会按剩余墙钟 / 尝试次数进一步压低 |
 | `SEARCH_PROVIDER` | `tavily`（推荐）或 `duckduckgo`（免费兜底） |
 | `MAX_SUBQUESTIONS` | 子问题上限，直接控制成本（可在 CLI/Web/评测按次覆盖，范围见 `MAX_SUBQUESTIONS_LIMIT`） |
@@ -269,7 +270,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 149 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志、writer 降级
+python -m pytest tests -q     # 154 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志、评测分位数/单变量覆盖、writer 降级
 ```
 
 ## 里程碑
@@ -310,12 +311,15 @@ python -m pytest tests -q     # 149 个用例：预算判定、LLM 超时/重试
   - 测试 144 个；与评测侧共用 `citations.py` 的引用正则，避免两套口径漂移
 - [x] **E2 可运维性**：JSON 结构化日志（request_id/thread_id）、请求头 `X-Request-ID`、异常堆栈落日志；新增 [docs/runbook.md](docs/runbook.md)（升级/回滚/备份/密钥轮换/排障）
   - 测试 149 个；真实 uvicorn 验证 JSON 行与 request_id 透传
+- [x] **F1 可测量评测**：`--set KEY=VALUE` 单变量覆盖；汇总输出 p50/p95；`JUDGE_MODEL` 支持独立 judge；历史 baseline/tuned 批次已重算分位数
+  - 测试 154 个；历史批次 p50/p95 见 [comparison.md](eval/results/comparison.md)；真实单变量批次需模型在线时补跑
 
 ## 评测体系（W3）
 
 ```bash
 python eval/run_eval.py --tag baseline --limit 8 --max-sub 2 --rounds 1   # 跑评测集
 python eval/run_eval.py --tag tuned     --limit 8 --max-sub 2 --rounds 1   # 调优后对照批次
+python eval/run_eval.py --tag strict --limit 20 --set WRITER_STRICT_GROUNDING=1  # 单变量实验
 python eval/run_eval.py --compare baseline tuned                           # 生成 results/comparison.md
 ```
 
@@ -323,8 +327,11 @@ python eval/run_eval.py --compare baseline tuned                           # 生
 - 评分维度：忠实度（论断能否在笔记中找到依据）、覆盖度（子问题 + 必覆盖要点）、引用质量（LLM judge 1~5）+ 必覆盖要点覆盖率 / 引用有效性 / 来源利用率（0~1）+ token 用量与成本估算
 - 忠实度的对照物与 writer 实际看到的证据一致（压缩生效时用压缩后的笔记视图，避免"报告 vs 未压缩原文"系统性偏松）
 - 逐题记录预算是否超限、是否压缩、重规划轮数、降级次数：**降级过的题不应与正常题混在一起看均值**
-- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`，以及 W5 的预算/压缩/重规划参数），换配置即换实验组；两批次同模型同题，配置差异由 `comparison.md` 的「配置差异」表逐项列出
+- A/B 开关全在 `.env`（`RESEARCH_PAGE_CHARS` / `NOTE_MIN~MAX_CHARS` / `WRITER_STRICT_GROUNDING`，以及 W5 的预算/压缩/重规划参数）；`--set KEY=VALUE` 可按次覆盖配置，**一次实验建议只改一项**，配置差异由 `comparison.md` 的「配置差异」表逐项列出
+- 汇总输出均值 + p50/p95（耗时、成本、输入/输出 tokens），避免只看均值掩盖长尾
+- `JUDGE_MODEL` 可指定独立 judge 模型；留空复用研究模型，便于用更强模型复评
 - `--recompute TAG`：确定性校验规则修正后重算历史批次，无需重跑研究
 - ⚠️ 评测工具本身也要被验证：早期版本的引用正则只匹配单个 `[n]`，把 `[2, 6, 12]` 复合引用判为"无引用"，导致 tuned 被低估（0.90 → 修正后 1.00）。**指标口径错误会直接误导调优方向**，确定性指标尤其要用边界用例自测
-- 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用更强模型（如 DeepSeek-V3）复评全量 20 题
+- 注意：judge 与研究共用同一模型时存在系统性偏差，分数用于相对对比；对外数字建议用 `JUDGE_MODEL` 指定更强模型复评全量 20 题
+- 历史 baseline/tuned 批次已按当前口径重算 p50/p95：baseline 耗时 p50 63.7s / p95 88.755s；tuned p50 72.25s / p95 82.13s（同一批历史数据，非新的单变量实验）
 

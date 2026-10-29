@@ -8,6 +8,7 @@
 """
 import re
 
+import config
 from citations import CITE_RE as _CITE_RE, extract_citations as _extract_citations
 from llm.client import chat_json
 
@@ -119,6 +120,7 @@ def judge_report(
         data = chat_json(
             [{"role": "user", "content": FAITHFULNESS_PROMPT.format(report=body, notes=notes_text)}],
             temperature=0.0,
+            model=config.JUDGE_MODEL or None,
         )
         result["faithfulness"] = _score(data)
         result["unsupported_claims"] = data.get("unsupported_claims", [])[:5]
@@ -138,6 +140,7 @@ def judge_report(
                 ),
             }],
             temperature=0.0,
+            model=config.JUDGE_MODEL or None,
         )
         result["coverage"] = _score(data)
         result["missing"] = data.get("missing", [])[:5]
@@ -157,6 +160,7 @@ def judge_report(
         data = chat_json(
             [{"role": "user", "content": CITATION_PROMPT.format(report=body, refs=refs)}],
             temperature=0.0,
+            model=config.JUDGE_MODEL or None,
         )
         result["citation_quality"] = _score(data)
     except Exception as exc:

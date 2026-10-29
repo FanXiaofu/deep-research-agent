@@ -55,10 +55,66 @@ def count_refs(report: str) -> int:
     return len([line for line in match.group(1).strip().splitlines() if re.match(r"^\d+\.\s", line.strip())])
 
 
-def config_snapshot(max_subquestions: int, max_search_rounds: int) -> dict:
+def percentile(values: list, p: float):
+    """线性插值分位数；空列表返回 None。"""
+    nums = sorted(v for v in values if isinstance(v, (int, float)))
+    if not nums:
+        return None
+    if len(nums) == 1:
+        return round(nums[0], 3)
+    pos = (len(nums) - 1) * p
+    low = int(pos)
+    high = min(low + 1, len(nums) - 1)
+    return round(nums[low] + (nums[high] - nums[low]) * (pos - low), 3)
+
+
+def percentile_snapshot(rows: list[dict]) -> dict:
+    out = {}
+    for key in ("elapsed_s", "cost_usd_est", "input_tokens", "output_tokens"):
+        values = [
+            r.get(key) for r in rows
+            if not r.get("error") and isinstance(r.get(key), (int, float))
+        ]
+        out[f"{key}_p50"] = percentile(values, 0.5)
+        out[f"{key}_p95"] = percentile(values, 0.95)
+    return out
+
+
+def apply_overrides(items: list[str] | None) -> dict:
+    """按 config 现有类型解析 --set KEY=VALUE，用于单变量 A/B。"""
+    applied = {}
+    for item in items or []:
+        if "=" not in item:
+            raise ValueError(f"--set 需要 KEY=VALUE，收到 {item!r}")
+        key, raw = item.split("=", 1)
+        key = key.strip()
+        if not hasattr(config, key):
+            raise ValueError(f"未知配置项：{key}")
+        current = getattr(config, key)
+        try:
+            if isinstance(current, bool):
+                value = raw.strip().lower() in {"1", "true", "yes", "on"}
+            elif isinstance(current, int):
+                value = int(raw)
+            elif isinstance(current, float):
+                value = float(raw)
+            else:
+                value = raw
+        except ValueError as exc:
+            raise ValueError(f"{key} 的类型不匹配：{raw!r}") from exc
+        setattr(config, key, value)
+        applied[key] = value
+    return applied
+
+
+def config_snapshot(
+    max_subquestions: int, max_search_rounds: int, overrides: dict | None = None
+) -> dict:
     return {
         "llm_model": config.LLM_MODEL,
+        "judge_model": config.JUDGE_MODEL or config.LLM_MODEL,
         "llm_base_url": config.LLM_BASE_URL,
+        "overrides": overrides or {},
         "max_subquestions": max_subquestions,
         "max_search_rounds": max_search_rounds,
         "max_results_per_search": config.MAX_RESULTS_PER_SEARCH,
@@ -203,7 +259,13 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
     out_dir = RESULTS_DIR / args.tag
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"== 评测批次 {args.tag}：{len(questions)} 题 | 模型 {config.LLM_MODEL} ==", flush=True)
+    judge_model = config.JUDGE_MODEL or config.LLM_MODEL
+    print(
+        f"== 评测批次 {args.tag}：{len(questions)} 题 | 研究 {config.LLM_MODEL} | judge {judge_model} ==",
+        flush=True,
+    )
+    if getattr(args, "overrides", None):
+        print(f"== 单变量覆盖：{args.overrides} ==", flush=True)
     if config.MEMORY_ENABLED:
         print(
             f"== 研究档案：已启用（阈值 {config.MEMORY_SIMILARITY_THRESHOLD}，"
@@ -229,9 +291,12 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
         summary = {
             "tag": args.tag,
             "finished_at": datetime.now().isoformat(timespec="seconds"),
-            "config": config_snapshot(max_subquestions, max_search_rounds),
+            "config": config_snapshot(
+                max_subquestions, max_search_rounds, overrides=getattr(args, "overrides", None)
+            ),
             "rows": rows,
             "means": {k: mean(rows, k) for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]},
+            "percentiles": percentile_snapshot(rows),
         }
         (out_dir / "summary.json").write_text(
             json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -244,15 +309,25 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
 
 def write_summary_md(summary: dict, out_dir: Path) -> None:
     rows, means, cfg = summary["rows"], summary["means"], summary["config"]
+    judge_model = cfg.get("judge_model") or cfg["llm_model"]
+    pct = summary.get("percentiles", {})
     lines = [
         f"# 评测批次：{summary['tag']}",
         "",
-        f"- 时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：同模型",
-        f"- 配置：page_chars={cfg['research_page_chars']}, note={cfg['note_min_chars']}~{cfg['note_max_chars']}"
-        f", strict_grounding={cfg['writer_strict_grounding']}, max_sub={cfg['max_subquestions']}, rounds={cfg['max_search_rounds']}",
-        f"- 预算：{cfg['max_llm_calls']} 调用 / {cfg['max_total_tokens']} tokens / {cfg['max_wall_clock_s']}s"
-        f"　|　重规划上限 {cfg['max_replan_rounds']}　|　压缩触发 {cfg['compact_trigger_chars']} 字"
-        f"（{'开' if cfg['compaction_enabled'] else '关'}）",
+        f"- 时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：`{judge_model}`",
+        f"- 配置：page_chars={cfg.get('research_page_chars', '-')}, "
+        f"note={cfg.get('note_min_chars', '-')}~{cfg.get('note_max_chars', '-')}"
+        f", strict_grounding={cfg.get('writer_strict_grounding', '-')}"
+        f", max_sub={cfg.get('max_subquestions', '-')}, rounds={cfg.get('max_search_rounds', '-')}",
+        f"- 预算：{cfg.get('max_llm_calls', '-')} 调用 / {cfg.get('max_total_tokens', '-')} tokens / "
+        f"{cfg.get('max_wall_clock_s', '-')}s"
+        f"　|　重规划上限 {cfg.get('max_replan_rounds', '-')}"
+        f"　|　压缩触发 {cfg.get('compact_trigger_chars', '-')} 字"
+        f"（{'开' if cfg.get('compaction_enabled') else '关/旧批次未记录'}）",
+    ]
+    if cfg.get("overrides"):
+        lines.append(f"- 单变量覆盖：`{cfg['overrides']}`")
+    lines += [
         "",
         "| 题目 | 忠实度 | 覆盖度 | 要点覆盖 | 引用(LLM) | 引用有效 | 来源利用 | tokens(入/出) | 耗时s | 状态 |",
         "|---|---|---|---|---|---|---|---|---|---|",
@@ -284,9 +359,13 @@ def write_summary_md(summary: dict, out_dir: Path) -> None:
         f" ｜ 引用质量 {means['citation_quality']} ｜ 引用有效性 {means['citation_validity']} ｜ 来源利用率 {means['source_utilization']}"
         f" ｜ 单题成本估算 ${means['cost_usd_est']} ｜ 单题耗时 {means['elapsed_s']}s",
         "",
-        "> 注：judge 与研究使用同一模型，小模型当 judge 有系统性偏差，分数用于 A/B 相对对比；",
+        f"**分位数**：耗时 p50 {pct.get('elapsed_s_p50')}s / p95 {pct.get('elapsed_s_p95')}s"
+        f" ｜ 成本 p50 ${pct.get('cost_usd_est_p50')} / p95 ${pct.get('cost_usd_est_p95')}"
+        f" ｜ 输入 tokens p50 {pct.get('input_tokens_p50')} / p95 {pct.get('input_tokens_p95')}",
+        "",
+        "> 注：judge 与研究的模型关系见上方；小模型当 judge 有系统性偏差，分数用于 A/B 相对对比；",
         "> 必覆盖要点覆盖率来自评测集 must_cover 清单（judge 逐条判定 + 代码做措辞对齐）；",
-        "> 正式对外数字建议用更强模型（如 DeepSeek-V3）复评并跑全量 20 题。",
+        "> 正式对外数字建议用独立强 judge 复评并跑全量 20 题；单变量实验请每次只改一个 --set。",
         "",
     ]
     (out_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")
@@ -308,8 +387,9 @@ def compare(tag_a: str, tag_b: str) -> None:
         "| 配置项 | " + tag_a + " | " + tag_b + " |",
         "|---|---|---|",
     ]
-    for key in data[tag_a]["config"]:
-        va, vb = data[tag_a]["config"][key], data[tag_b]["config"][key]
+    cfg_a, cfg_b = data[tag_a]["config"], data[tag_b]["config"]
+    for key in sorted(set(cfg_a) | set(cfg_b)):
+        va, vb = cfg_a.get(key), cfg_b.get(key)
         mark = " ←" if va != vb else ""
         lines.append(f"| {key} | {va} | {vb}{mark} |".replace(" |←", " ←|"))
 
@@ -329,6 +409,26 @@ def compare(tag_a: str, tag_b: str) -> None:
         delta = round(vb - va, 3) if isinstance(va, (int, float)) and isinstance(vb, (int, float)) else "-"
         lines.append(f"| {label.get(key, key)} | {va} | {vb} | {delta} |")
 
+    pct_a, pct_b = data[tag_a].get("percentiles", {}), data[tag_b].get("percentiles", {})
+    if pct_a or pct_b:
+        lines += [
+            "",
+            "## 分位数对比",
+            "",
+            "| 指标 | " + tag_a + " | " + tag_b + " | Δ |",
+            "|---|---|---|---|",
+        ]
+        pct_label = {
+            "elapsed_s_p50": "耗时 p50(s)", "elapsed_s_p95": "耗时 p95(s)",
+            "cost_usd_est_p50": "成本 p50($)", "cost_usd_est_p95": "成本 p95($)",
+            "input_tokens_p50": "输入 tokens p50", "input_tokens_p95": "输入 tokens p95",
+            "output_tokens_p50": "输出 tokens p50", "output_tokens_p95": "输出 tokens p95",
+        }
+        for key in pct_label:
+            va, vb = pct_a.get(key), pct_b.get(key)
+            delta = round(vb - va, 3) if isinstance(va, (int, float)) and isinstance(vb, (int, float)) else "-"
+            lines.append(f"| {pct_label[key]} | {va} | {vb} | {delta} |")
+
     lines += ["", "## 逐题分数", "", "| 题目 | " + f"{tag_a} 忠实/覆盖/引用 | {tag_b} 忠实/覆盖/引用 |", "|---|---|---|"]
     rows_a = {r["id"]: r for r in data[tag_a]["rows"]}
     rows_b = {r["id"]: r for r in data[tag_b]["rows"]}
@@ -342,7 +442,7 @@ def compare(tag_a: str, tag_b: str) -> None:
 
     lines += [
         "",
-        f"> judge 模型：`{data[tag_a]['config']['llm_model']}`（两批次相同）；n={len(rows_a)}。",
+        f"> judge 模型：`{cfg_a.get('judge_model') or cfg_a['llm_model']}`（两批次需一致）；n={len(rows_a)}。",
         "> 改进建议：跑全量 20 题、用更强模型复评后再写进简历。",
         "",
     ]
@@ -384,6 +484,7 @@ def recompute(tag: str) -> None:
         k: mean(summary["rows"], k)
         for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]
     }
+    summary["percentiles"] = percentile_snapshot(summary["rows"])
     summary["recomputed_at"] = datetime.now().isoformat(timespec="seconds")
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     write_summary_md(summary, out_dir)
@@ -403,6 +504,8 @@ def main() -> None:
                         help=f"覆盖子问题上限（1~{config.MAX_SUBQUESTIONS_LIMIT}；两批次需一致）")
     parser.add_argument("--rounds", type=int,
                         help=f"覆盖每个子问题最大检索轮数（1~{config.MAX_SEARCH_ROUNDS_LIMIT}）")
+    parser.add_argument("--set", action="append", metavar="KEY=VALUE",
+                        help="单变量实验覆盖配置（可重复；一次实验建议只改一项）")
     parser.add_argument("--compare", nargs=2, metavar=("TAG_A", "TAG_B"), help="生成两个批次的对比报告")
     parser.add_argument("--recompute", metavar="TAG", help="按修复后的规则重算既有批次的确定性指标")
     parser.add_argument("--memory", choices=["on", "off"], help="覆盖 MEMORY_ENABLED（A/B 用）")
@@ -410,6 +513,10 @@ def main() -> None:
                         help="开跑前清空研究档案（保证两批次起点一致；跑 with-memory 批次前必做）")
     args = parser.parse_args()
 
+    try:
+        args.overrides = apply_overrides(args.set)
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         max_subquestions, max_search_rounds = config.validate_scale(args.max_sub, args.rounds)
     except ValueError as exc:

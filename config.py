@@ -11,6 +11,8 @@ load_dotenv(BASE_DIR / ".env")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+# 评测 judge 可单独指定更强模型；留空表示复用 LLM_MODEL
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", "")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 # 单次调用上限与重试次数；实际 timeout 还会被"剩余墙钟预算 / 尝试次数"进一步压低。
 LLM_CALL_TIMEOUT_S = float(os.getenv("LLM_CALL_TIMEOUT_S", "300"))

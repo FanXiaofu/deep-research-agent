@@ -85,15 +85,21 @@ def get_client() -> OpenAI:
 
 
 @observability.observe(name="llm.chat")
-def chat(messages: list[dict], *, temperature: float | None = None, json_mode: bool = False) -> str:
+def chat(
+    messages: list[dict],
+    *,
+    temperature: float | None = None,
+    json_mode: bool = False,
+    model: str | None = None,
+) -> str:
     """单轮对话。json_mode=True 时要求模型输出 JSON（提示词里需包含"JSON"字样）。"""
     if config.LLM_PROMPT_SUFFIX:
         messages = [dict(m) for m in messages]
         messages[-1]["content"] = messages[-1]["content"] + config.LLM_PROMPT_SUFFIX
     if config.LLM_NATIVE_OLLAMA:
-        return _native_chat(messages, temperature=temperature, json_mode=json_mode)
+        return _native_chat(messages, temperature=temperature, json_mode=json_mode, model=model)
     kwargs = dict(
-        model=config.LLM_MODEL,
+        model=model or config.LLM_MODEL,
         messages=messages,
         temperature=config.LLM_TEMPERATURE if temperature is None else temperature,
     )
@@ -151,7 +157,9 @@ _NATIVE_SYSTEM = (
 )
 
 
-def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: bool) -> str:
+def _native_chat(
+    messages: list[dict], *, temperature: float | None, json_mode: bool, model: str | None = None
+) -> str:
     """Ollama 原生 /api/chat：唯一能真正关掉 qwen3 思考通道的路径（think=false）。
 
     think=false 时 qwen3 仍可能把推理写进正文，因此叠加系统提示与 /no_think 软开关双保险，
@@ -172,7 +180,7 @@ def _native_chat(messages: list[dict], *, temperature: float | None, json_mode: 
         )
         reliability.record_degradation("ollama_ctx", f"提示词约 {prompt_tokens} tokens 逼近 num_ctx={config.OLLAMA_NUM_CTX}")
     body = {
-        "model": config.LLM_MODEL,
+        "model": model or config.LLM_MODEL,
         "messages": msgs,
         "stream": False,
         "think": False,
