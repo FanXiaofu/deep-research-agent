@@ -4,7 +4,7 @@ langgraph-checkpoint-postgres>=3.0
 psycopg[binary]>=3.1
 psycopg-pool>=3.2
 redis>=5
-cryptography>=43
+cryptography>=50.0.2
 # 供应链扫描修复版本（Trivy HIGH/CRITICAL）
 certifi>=2026.10.18
 urllib3>=2.8.0
