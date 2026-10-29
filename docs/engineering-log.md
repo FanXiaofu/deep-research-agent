@@ -33,6 +33,7 @@
 | `1c2fe02` | CI：Trivy 改为直接跑固定版本镜像 |
 | `58b2191` | P1.6：证据支撑审计 + 网页不可信包裹 |
 | `8b4c2d2` | P1.7：真实 smoke 修复 + 可选内容安全审计 |
+| `451c818` | P1.8：20 题 baseline + kill/restart 修复 |
 
 推送状态：
 
@@ -297,7 +298,7 @@
 - 修复：CLI 进度打印对 `None`/非 dict 节点输出崩溃；observability context manager 在异常时二次 `yield` 掩盖原始异常。
 - 限制：judge 与研究模型同为 `qwen2.5:7b-instruct`，不是独立强 judge；1×1 规模低于默认；没有独立 judge 的 20 题复评。
 - 验证：183 SQLite tests；真实 20 题与 kill/restart 记录见 `docs/eval-p17-smoke.md`。
-- 提交：本轮提交。
+- 提交：`451c818`。
 
 ## 3. 路线状态
 
