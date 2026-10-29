@@ -31,6 +31,7 @@
 | `c497805` | P1.4：多副本 + Caddy/nginx + `/readyz` + 日志聚合 |
 | `a49fe66` | P1.5：加密备份 + secret + CSP + Trivy/Dependabot |
 | `1c2fe02` | CI：Trivy 改为直接跑固定版本镜像 |
+| `58b2191` | P1.6：证据支撑审计 + 网页不可信包裹 |
 
 推送状态：
 
@@ -273,7 +274,7 @@
   - 新增配置 `GROUNDING_AUDIT_ENABLED / GROUNDING_JUDGE_MODEL / GROUNDING_MAX_CLAIMS / GROUNDING_LEXICAL_THRESHOLD`。
 - 验证：180 SQLite tests；包裹/闭合标签中和、researcher 提示词边界、词面低覆盖/数字不一致、语义 judge stub、writer 集成均通过。
 - 遗留：没有真实模型在线的语义 judge 复评；词面覆盖不是事实裁决；没有内容安全分类器/审核策略；真实 kill/restart 与 A/B 仍未执行。
-- 提交：本轮提交。
+- 提交：`58b2191`。
 
 ## 3. 路线状态
 
