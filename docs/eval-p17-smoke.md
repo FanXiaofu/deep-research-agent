@@ -123,6 +123,23 @@ baseline q01 正文实际 **0 条引用**，同模型 judge 仍给了 citation_q
 
 单题结果，不是完整批次。API 模型明显比本地 qwen 慢、token 更多；下一步应先确认成本和延迟是否可接受，再跑 smoke 10。
 
+## API 3 题尝试（中止）
+
+尝试 `--suite smoke --limit 3`：
+
+- q01：3/3/2，引用有效性 0.0，557.1s；报告撰写 API 返回空 choices，触发 fallback，报告变成笔记原始汇总。
+- q02：4/4/None，908.9s；citation judge 超时，citation_quality 缺失。
+- q03：主动中止，避免继续消耗。
+
+结论：当前 `deepseek/deepseek-v4-pro` + `Qwen/Qwen3.8-Max` + 3 次 judge 的组合太慢，且 API 空响应会触发 fallback；不适合直接跑全量。已修复空 choices 的 TypeError 处理，但模型/参数还需要调整。
+
+建议下一轮：
+
+- research 用 `deepseek/deepseek-v4-flash`（更快、更便宜）；
+- judge 用 `Qwen/Qwen3.8-Flash` 或 `deepseek/deepseek-v4-flash`，不要用 Max 做每题 3 次 judge；
+- 或 judge 继续走 `cmdc`（Go CLI），research 走 API；
+- 先跑 1 题确认不再超时，再扩 3 题。
+
 ## 结论与限制
 
 - 真实链路可跑通，引用编号校验为 1.0；全量 20 题同 judge 结果是可复现基线，但不是独立质量结论。

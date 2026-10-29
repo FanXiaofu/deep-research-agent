@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **188 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **190 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -321,6 +321,7 @@
 - 限制：`cmdc` 是编码 Agent，不是专用 judge，可能偏严；需要 Go+ 套餐/登录或 API key；仍不是 110 题独立复评。
 - API 研究模型单题：`deepseek/deepseek-v4-pro` 研究 + `Qwen/Qwen3.8-Max` judge，q01 为 4/3/3、must_cover 1.0、citation_validity 1.0，耗时 517.9s、研究 token 18277/17541、研究成本估价 $0.0242；仅单题。
 - API 配置：`LLM_BASE_URL=https://api.commandcode.ai/provider/v1`、`LLM_MODEL=deepseek/deepseek-v4-pro`、`LLM_NATIVE_OLLAMA=0`、`JUDGE_PROVIDER=local`、`JUDGE_MODEL=Qwen/Qwen3.8-Max`。
+- API 3 题尝试中止：q01 fallback（API 空 choices，引用有效性 0）、q02 judge 超时（908.9s）、q03 主动停止；修复空 choices 的 TypeError，但 Pro + Qwen Max + 3 次 judge 组合太慢，下一轮改用 flash 模型/更轻 judge。
 - 提交：`f7f40e3`。
 
 ## 3. 路线状态

@@ -371,7 +371,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 188 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 190 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、Command Code judge、API 空响应、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -434,6 +434,7 @@ python -m pytest tests -q     # 188 个用例 + 6 个集成用例（4 Postgres /
   - 真实结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；judge 与研究模型相同，不是独立强 judge
 - [x] **P1.8 全量 baseline / 断点续跑**：20 题全量（1×1 规模）0 报错；faithfulness 4.75、citation_validity 1.0；真实 kill/restart `--resume` 完成；修复 CLI None 输出与 Langfuse context manager 异常掩盖
   - 新增 `JUDGE_PROVIDER=commandcode`：通过 `cmdc` headless 调 Go 套餐模型；smoke 10 独立 judge 均分 3.6/2.7/2.4，同模型为 4.6/4.1/4.5，确认同 judge 偏高
+  - API 研究模型单题 4/3/3；3 题尝试因 q01 fallback、q02 judge 超时中止，需换 flash 模型/更轻 judge
   - 全量结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)
 - [x] **评测集 v2**：扩充到 110 题——80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial；`run_eval.py --suite` 分层运行
   - 说明与用法见 [docs/eval-dataset.md](docs/eval-dataset.md)；同 judge 的 110 题仍不能替代独立强 judge

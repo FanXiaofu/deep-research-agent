@@ -112,7 +112,12 @@ def chat(
         pt = int(getattr(usage, "prompt_tokens", 0) or getattr(usage, "input_tokens", 0) or 0)
         ct = int(getattr(usage, "completion_tokens", 0) or getattr(usage, "output_tokens", 0) or 0)
         USAGE.add(pt, ct)
-    return _THINK_RE.sub("", resp.choices[0].message.content or "").strip()
+    choices = getattr(resp, "choices", None) or []
+    if not choices:
+        raise RuntimeError("LLM 返回空 choices（可能是内容过滤或 provider 异常）")
+    message = getattr(choices[0], "message", None)
+    content = getattr(message, "content", None) or ""
+    return _THINK_RE.sub("", content).strip()
 
 
 def chat_json(messages: list[dict], **kwargs) -> dict:
