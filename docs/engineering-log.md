@@ -29,6 +29,7 @@
 | `2999f8e` | P1.2：Redis 共享限流/指标 + CI redis job |
 | `f97a57e` | P1.3：账号/API token/RBAC/配额/审计 |
 | `c497805` | P1.4：多副本 + Caddy/nginx + `/readyz` + 日志聚合 |
+| `a49fe66` | P1.5：加密备份 + secret + CSP + Trivy/Dependabot |
 
 推送状态：
 
@@ -257,7 +258,7 @@
 - 验证：173 SQLite tests；加密备份/错误 key/恢复/密钥文件/过期清理；静态资源与无 inline 断言；`node --check`；本地 CLI 加密备份→恢复往返。
 - 供应链验证：Trivy 首次扫描发现 5 个可修复 HIGH/CRITICAL（certifi、urllib3、jaraco.context、wheel），升级后重建镜像再扫退出码 0；setuptools 也升级以替换其 vendored 旧 wheel/jaraco。
 - 遗留：无 WAF/Bot 管理、无 token 过期、无镜像签名、无主机运行时检测。
-- 提交：本轮提交。
+- 提交：`a49fe66`。
 
 ## 3. 路线状态
 
