@@ -240,6 +240,7 @@
   - 新增可选 `docker-compose.observability.yml`（Loki + Promtail + Grafana）与 `deploy/prometheus.example.yml`；
   - CI 增加 `compose` job，校验生产 compose、Caddyfile 与 nginx。
 - 验证：166 SQLite tests（新增 2 个 `/readyz` 用例）；`caddy validate`、`nginx -t`、生产 compose config 通过；本地实际起 2 副本，nginx 将请求分发到两个 app；停掉 app-1 后 6 次请求仍全 200；扩到 3 副本后请求落到 3 个 app；Caddy 入口 `/readyz` 200。
+- 决策记录：实测 Caddy 直接 `reverse_proxy app:8000` 只命中一个副本（8 次请求全到 app-2）；Traefik v3.5 在 Docker 29 上 Docker provider 报 400；最终用 nginx `resolver 127.0.0.11` + `upstream server app:8000 resolve`，实测 2/3 副本分发与停副本故障转移。
 - 遗留：没有自动化压测/滚动发布、蓝绿/金丝雀；nginx 只有被动健康检查（无主动探测）；Loki 方案需要 Docker socket；没有 Prometheus/Grafana 自动拉起。
 - 提交：`c497805`。
 
