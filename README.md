@@ -147,7 +147,7 @@ python maintenance.py restore backups/checkpoints-20261029-112638-590354.db --ta
 - Docker 的 `./data` 卷同时保存 `checkpoints.db` 与 `memory.db`；容器重建不会丢研究档案。
 - `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)。
 
 ## Langfuse 全链路追踪
 
