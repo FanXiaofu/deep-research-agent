@@ -117,6 +117,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 报告渲染 + 统计卡片（子问题数/LLM 调用/token/成本估算/耗时），一键复制 Markdown
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
+- 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
+- API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
+- 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
 
 ## Docker 部署
 
@@ -127,6 +130,8 @@ docker compose up -d
 ```
 
 本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像构建约 436MB，容器内已实测跑通完整研究流程。
+
+> 公网部署前必须设置 `APP_AUTH_TOKEN`（足够长的随机值），并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
 
 更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)。
 
@@ -169,6 +174,11 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `REVIEW_POINTS` / `PLAN_REVIEW_MIN_SUBQUESTIONS` | 人工审核点位：`brief`（任务书）/ `plan`（子问题），逗号分隔，空=全自动；plan 点位仅首次规划生效，子问题数低于阈值时不暂停 |
 | `COMPACTION_ENABLED` / `COMPACT_TRIGGER_CHARS` / `COMPACT_TARGET_CHARS` | 笔记压缩开关、触发阈值、压缩后总字数目标 |
 | `SEARCH_RETRIES` / `BREAKER_FAILURE_THRESHOLD` / `BREAKER_COOLDOWN_S` | 搜索重试次数、熔断阈值、熔断冷却时间 |
+| `APP_AUTH_TOKEN` | Bearer 访问令牌；留空仅允许本机回环，公网部署必须设置足够长的随机值 |
+| `APP_RATE_LIMIT_PER_MINUTE` | 单进程每 IP 每分钟研究/续跑请求上限（默认 30）；多 worker 需换共享限流 |
+| `APP_MAX_TOPIC_CHARS` / `APP_MAX_REVIEW_CHARS` | 研究主题与人工审核内容的长度上限 |
+| `APP_MAX_REQUEST_BYTES` | 单请求 Content-Length 上限（默认 64KB）；chunked 请求体需在反向代理层限制 |
+| `MAX_FETCH_BYTES` / `FETCH_MAX_REDIRECTS` | 单页最多读取字节数（默认 2MB）与最大重定向次数（默认 3） |
 | `MEMORY_ENABLED` / `MEMORY_DB` | 研究档案（长期记忆）开关与库文件；**默认关闭**，开启后命中记忆的子问题不再检索 |
 | `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
 | `OLLAMA_NUM_CTX` / `LLM_NATIVE_OLLAMA` | Ollama 原生路径的上下文窗口与开关（原生 `/api/chat` 才能关掉 qwen3 thinking）；提示词逼近上限时在 stderr 告警 |
@@ -228,7 +238,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 106 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、writer 降级
+python -m pytest tests -q     # 127 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、writer 降级
 ```
 
 ## 里程碑
@@ -257,6 +267,8 @@ python -m pytest tests -q     # 106 个用例：预算判定、熔断开合、�
   - 目标：配置错误在启动时暴露，而不是等到检索/撰写阶段退化成"未收集到资料"的空报告；`/healthz` 只读本地配置，不发起外部请求
 - [x] **B1 请求隔离**：usage / 预算时钟 / 降级事件 / 熔断器按 `thread_id` 隔离（`run_context.py`）；Web thread_id 加 UUID 后缀；HITL 续跑保留 usage、只重算墙钟；评测每题独立 thread，同 tag 可重跑；测试 106 个
   - 验证：三路并发 SSE 流各自只统计自己的调用；同 thread 重跑不再追加旧笔记；续跑 `BUDGET.reset()` 不会清零已用调用数
+- [x] **D1 安全边界**：Bearer 认证 + 本机回环兜底；研究/续跑改 POST JSON（Bearer header 天然免 CSRF）；报告 HTML 经 `nh3` 白名单清洗；抓取侧 SSRF 防护（协议/端口/私网/逐跳重定向/字节上限）；每 IP 限流与输入长度上限；测试 127 个
+  - 部署默认值：compose 只发布 `127.0.0.1`，公网必须设置 `APP_AUTH_TOKEN` 并放在反向代理/TLS 后面
 
 ## 评测体系（W3）
 

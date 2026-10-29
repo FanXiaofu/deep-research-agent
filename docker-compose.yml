@@ -20,9 +20,17 @@ services:
     build: .
     container_name: research-agent-app
     restart: unless-stopped
+    # 默认只发布到本机回环：公网部署请放在反向代理/隧道后面，并设置 APP_AUTH_TOKEN
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file: .env
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       CHECKPOINT_DB: /app/data/checkpoints.db
       # 容器内 app 走 compose 网络访问 Langfuse（本机跑 app 时用 .env 里的 localhost:3000）
@@ -47,8 +55,9 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
+    # Langfuse 管理面默认也只绑本机，避免把观测数据暴露到公网
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       <<: &lf-env
         NEXTAUTH_URL: http://localhost:3000

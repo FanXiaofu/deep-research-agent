@@ -13,7 +13,7 @@
   .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
   .sub b { color:var(--acc); font-weight:600; }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
-  textarea, input[type=text], select { width:100%; background:#12141c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:14px; font-family:inherit; }
+  textarea, input[type=text], input[type=password], select { width:100%; background:#12141c; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:14px; font-family:inherit; }
   textarea { resize:vertical; min-height:64px; }
   .row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
   .row label { color:var(--muted); font-size:13px; display:flex; align-items:center; gap:6px; }
@@ -53,6 +53,11 @@
   <div class="panel">
     <textarea id="topic" placeholder="输入研究主题，例如：LangGraph 和 CrewAI 有什么区别，各自适合什么场景"></textarea>
     <div class="row">
+      <label style="flex:1">访问令牌
+        <input type="password" id="auth-token" placeholder="{% if auth_required %}必填：APP_AUTH_TOKEN{% else %}本机访问可留空{% endif %}" autocomplete="off">
+      </label>
+    </div>
+    <div class="row">
       <label>子问题上限 <input type="number" id="max-sub" min="1" max="{{ max_sub_limit }}" value="{{ max_sub_default }}" style="width:68px" oninput="updateScaleHint()"></label>
       <label>检索轮数 <input type="number" id="rounds" min="1" max="{{ rounds_limit }}" value="{{ rounds_default }}" style="width:68px" oninput="updateScaleHint()"></label>
       <label><input type="checkbox" id="review-brief" {% if "brief" in review_points %}checked{% endif %}> 审核任务书</label>
@@ -88,12 +93,12 @@
 </div>
 
 <script>
-let es = null, threadId = null, lastMd = "", gotFirst = false;
+let threadId = null, lastMd = "", gotFirst = false;
 
 function fmt(s) { return s + "s"; }
 function show(id) { document.getElementById(id).classList.remove("hide"); }
 function status(text) { show("status"); document.getElementById("status-text").textContent = text; }
-function done() { document.getElementById("status").classList.add("hide"); setBtn(false); if (es) { es.close(); es = null; } }
+function done() { document.getElementById("status").classList.add("hide"); setBtn(false); }
 function setBtn(b) { document.getElementById("btn-start").disabled = b; }
 
 function addEvent(label, html, elapsed) {
@@ -171,19 +176,63 @@ function handle(data) {
   }
 }
 
-function listen(url) {
+function authHeaders() {
+  const token = document.getElementById("auth-token").value.trim();
+  return token ? { Authorization: "Bearer " + token } : {};
+}
+
+function listen(url, body) {
   setBtn(true);
   show("timeline-panel");
   gotFirst = false;
-  es = new EventSource(url);
-  es.onmessage = e => { gotFirst = true; handle(JSON.parse(e.data)); };
-  es.onerror = () => {
-    if (es.readyState === EventSource.CLOSED) {
-      // 4xx 响应体在 EventSource 里读不到，只能给出可操作的提示
-      if (!gotFirst) addEvent("❌ 请求失败", "<span class='err'>服务无响应，或规模参数不合法（子问题上限 / 检索轮数需在允许范围内）</span>", "");
+  (async () => {
+    let resp;
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      addEvent("❌ 请求失败", `<span class='err'>${esc(e.message || "网络错误")}</span>`, "");
+      done();
+      return;
+    }
+    if (!resp.ok) {
+      let msg = "HTTP " + resp.status;
+      try {
+        const j = await resp.json();
+        if (j.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+      } catch (_) {}
+      addEvent("❌ 请求失败", `<span class='err'>${esc(msg)}</span>`, "");
+      done();
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    try {
+      while (true) {
+        const { value, done: streamDone } = await reader.read();
+        if (streamDone) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const chunk = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 2);
+          if (!chunk) continue;
+          const line = chunk.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          gotFirst = true;
+          handle(JSON.parse(line.slice(6)));
+        }
+      }
+    } catch (e) {
+      addEvent("❌ 连接中断", `<span class='err'>${esc(e.message || "读取响应失败")}</span>`, "");
+    } finally {
       done();
     }
-  };
+  })();
 }
 
 function updateScaleHint() {
@@ -208,7 +257,7 @@ function startResearch() {
   const maxSub = parseInt(document.getElementById("max-sub").value, 10);
   const rounds = parseInt(document.getElementById("rounds").value, 10);
   if (!(maxSub >= 1) || !(rounds >= 1)) { alert("子问题上限与检索轮数都需 ≥ 1"); return; }
-  listen(`/api/research/stream?topic=${encodeURIComponent(topic)}&points=${encodeURIComponent(points.join(","))}&max_sub=${maxSub}&rounds=${rounds}`);
+  listen("/api/research/stream", { topic: topic, points: points, max_sub: maxSub, rounds: rounds });
 }
 
 function toggleEdit() {
@@ -219,7 +268,7 @@ function toggleEdit() {
 
 function resume(value) {
   document.getElementById("review-panel").classList.add("hide");
-  listen(`/api/resume/stream?thread_id=${encodeURIComponent(threadId)}&value=${encodeURIComponent(value)}`);
+  listen("/api/resume/stream", { thread_id: threadId, value: value });
 }
 
 function resumeFromEdit() { resume(document.getElementById("brief-edit").value); }

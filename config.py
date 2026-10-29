@@ -114,6 +114,17 @@ LLM_NATIVE_OLLAMA = os.getenv("LLM_NATIVE_OLLAMA", "0") == "1"
 # 客户端在估算用量接近上限时显式告警。换模型时按模型实际窗口调整。
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
+# ==== Web 安全（公网部署时 APP_AUTH_TOKEN 必填）====
+# 留空只允许本机回环访问；对外部署必须设置一个足够长的随机 token（Bearer）。
+APP_AUTH_TOKEN = os.getenv("APP_AUTH_TOKEN", "")
+APP_RATE_LIMIT_PER_MINUTE = int(os.getenv("APP_RATE_LIMIT_PER_MINUTE", "30"))
+APP_MAX_TOPIC_CHARS = int(os.getenv("APP_MAX_TOPIC_CHARS", "500"))
+APP_MAX_REVIEW_CHARS = int(os.getenv("APP_MAX_REVIEW_CHARS", "5000"))
+APP_MAX_REQUEST_BYTES = int(os.getenv("APP_MAX_REQUEST_BYTES", "65536"))
+# 抓取侧：只允许 http/https、80/443，拒绝私网/链路本地/保留地址；响应超过该字节数即截断。
+MAX_FETCH_BYTES = int(os.getenv("MAX_FETCH_BYTES", "2000000"))
+FETCH_MAX_REDIRECTS = int(os.getenv("FETCH_MAX_REDIRECTS", "3"))
+
 # ==== 启动自检 ====
 # 只做"不联网就能判定"的校验：缺 key、空模型名、非正数预算等。目的是让配置错误在
 # 启动时就暴露，而不是等到检索/撰写阶段退化成"未收集到资料"的空报告（那会白花 token，
@@ -155,6 +166,11 @@ def runtime_config_errors() -> list[str]:
         "MAX_WALL_CLOCK_S": MAX_WALL_CLOCK_S,
         "MAX_BUDGET_USD": MAX_BUDGET_USD,
         "GRAPH_RECURSION_LIMIT": GRAPH_RECURSION_LIMIT,
+        "APP_RATE_LIMIT_PER_MINUTE": APP_RATE_LIMIT_PER_MINUTE,
+        "APP_MAX_TOPIC_CHARS": APP_MAX_TOPIC_CHARS,
+        "APP_MAX_REVIEW_CHARS": APP_MAX_REVIEW_CHARS,
+        "APP_MAX_REQUEST_BYTES": APP_MAX_REQUEST_BYTES,
+        "MAX_FETCH_BYTES": MAX_FETCH_BYTES,
     }
     for name, value in positive.items():
         if value <= 0:
@@ -174,6 +190,8 @@ def runtime_config_errors() -> list[str]:
         errors.append(
             f"MEMORY_SIMILARITY_THRESHOLD 需在 0~1 之间（当前 {MEMORY_SIMILARITY_THRESHOLD}）"
         )
+    if FETCH_MAX_REDIRECTS < 0:
+        errors.append(f"FETCH_MAX_REDIRECTS 不能为负数（当前 {FETCH_MAX_REDIRECTS}）")
     return errors
 
 

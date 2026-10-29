@@ -4,14 +4,17 @@
 
 接口：
     GET /                          研究界面
-    GET /api/research/stream       发起研究并流式返回进度（SSE）
-    GET /api/resume/stream         human-in-the-loop 审核后续跑（SSE）
+    GET /healthz                   配置自检
+    POST /api/research/stream      发起研究并流式返回进度（SSE，JSON body）
+    POST /api/resume/stream        human-in-the-loop 审核后续跑（SSE，JSON body）
     GET /api/report/{thread_id}    获取某次研究的最终报告（Markdown）
 
 并发：运行期状态（usage / 降级 / 熔断）按 thread_id 隔离（run_context）；
 checkpoint 连接仍是进程级共享（SQLite 单连接）。
 """
 import json
+import queue
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -20,14 +23,17 @@ from pathlib import Path
 
 import config
 import markdown as md_lib
+import nh3
 import observability
 import reliability
 import run_context
+from app import security
 from budget import BUDGET
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Path as ApiPath, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
+from pydantic import BaseModel, Field
 
 from graph.build import build_research_app, make_checkpointer, thread_config
 from llm.client import USAGE
@@ -44,6 +50,63 @@ app = FastAPI(title="Deep Research Agent", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _research_app = None
+
+
+@app.middleware("http")
+async def reject_oversized_body(request: Request, call_next):
+    """便宜的 Content-Length 上限；chunked 请求体仍需在反向代理层限制。"""
+    raw = request.headers.get("content-length")
+    if raw:
+        try:
+            size = int(raw)
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Content-Length 非法"})
+        if size > config.APP_MAX_REQUEST_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"请求体过大（上限 {config.APP_MAX_REQUEST_BYTES} 字节）"},
+            )
+    return await call_next(request)
+
+
+class ResearchRequest(BaseModel):
+    topic: str = Field(..., min_length=2, max_length=config.APP_MAX_TOPIC_CHARS)
+    points: list[str] | None = Field(default=None, max_length=2)
+    max_sub: int | None = None
+    rounds: int | None = None
+
+
+class ResumeRequest(BaseModel):
+    thread_id: str = Field(..., min_length=1, max_length=128)
+    value: str = Field(default="", max_length=config.APP_MAX_REVIEW_CHARS)
+
+
+_ALLOWED_TAGS = {
+    "a", "p", "br", "strong", "em", "del", "sup", "sub",
+    "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
+    "blockquote", "code", "pre", "hr",
+    "table", "thead", "tbody", "tr", "th", "td", "img",
+}
+_ALLOWED_ATTRS = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "code": {"class"},
+    "th": {"align"},
+    "td": {"align"},
+}
+
+
+def render_report_html(report: str) -> str:
+    """Markdown → HTML 后按白名单清洗：报告内容含检索结果，不能直接 innerHTML。"""
+    html = md_lib.markdown(report, extensions=["extra"])
+    return nh3.clean(
+        html,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRS,
+        clean_content_tags={"script", "style"},
+        url_schemes={"http", "https", "mailto"},
+        link_rel="noopener noreferrer",
+    )
 
 NODE_LABELS = {
     "coordinator": "🎯 协调员",
@@ -110,7 +173,7 @@ def _report_event(state: dict, elapsed: float) -> str:
     return sse({
         "type": "report",
         "markdown": report,
-        "html": md_lib.markdown(report, extensions=["extra"]),
+        "html": render_report_html(report),
         "stats": {
             "subquestions": len(state.get("subquestions", [])),
             "notes": len(state.get("notes", [])),
@@ -133,45 +196,67 @@ def _report_event(state: dict, elapsed: float) -> str:
 def _stream(payload, cfg: dict, started: float):
     """公共生成器：流式执行图产出 SSE 事件；遇到 interrupt 时结束本次流，等待 /resume 续跑。
 
-    整轮研究包在 run_scope + trace_context 里：usage/降级/熔断只属于当前 thread；
+    图在独立 worker 线程里执行，事件经队列回到 SSE 生成器：sync 生成器可能被
+    Starlette 在线程池里分多次 next() 推进，ContextVar token 不能跨 context 重置，
+    因此 run_scope 和 trace_context 必须固定在 worker 的同一个 context 内。
     中断时保留上下文供 /resume 续用，正常出报告后释放。
     """
     run_id = cfg["configurable"]["thread_id"]
+    events: queue.Queue = queue.Queue()
     completed = False
-    with run_context.run_scope(run_id):
-        with observability.trace_context(run_id, trace_name="deep-research"):
-            try:
-                for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
-                    if "__interrupt__" in update:
-                        intr = update["__interrupt__"][0]
-                        value = intr.value or {}
-                        yield sse({
-                            "type": "interrupt",
-                            "thread_id": run_id,
-                            "kind": value.get("kind", "brief"),
-                            "title": value.get("title", ""),
-                            "content": value.get("content", ""),
-                        })
-                        return
-                    for node, out in update.items():
-                        if node in ("review_brief", "review_plan"):
-                            continue  # 审核由 interrupt 事件负责
-                        for ev in _describe(node, out):
-                            ev.update({
-                                "type": "node_done",
-                                "label": NODE_LABELS.get(node, node),
-                                "elapsed_s": round(time.time() - started, 1),
-                            })
-                            yield sse(ev)
-                state = get_research_app().get_state(cfg).values or {}
-                event = _report_event(state, time.time() - started)
-                completed = True
-                yield event
-            except Exception as exc:
-                yield sse({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
-            finally:
-                if completed:
-                    run_context.discard_run(run_id)
+
+    def worker():
+        with run_context.run_scope(run_id):
+            with observability.trace_context(run_id, trace_name="deep-research"):
+                try:
+                    for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
+                        events.put(("update", update))
+                    state = get_research_app().get_state(cfg).values or {}
+                    events.put(("report", _report_event(state, time.time() - started)))
+                except Exception as exc:
+                    events.put(("error", f"{type(exc).__name__}: {exc}"))
+                finally:
+                    events.put(("done", None))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    while True:
+        kind, data = events.get()
+        if kind == "done":
+            break
+        if kind == "error":
+            yield sse({"type": "error", "message": data})
+            continue
+        if kind == "report":
+            completed = True
+            yield data
+            continue
+
+        update = data
+        if "__interrupt__" in update:
+            intr = update["__interrupt__"][0]
+            value = intr.value or {}
+            yield sse({
+                "type": "interrupt",
+                "thread_id": run_id,
+                "kind": value.get("kind", "brief"),
+                "title": value.get("title", ""),
+                "content": value.get("content", ""),
+            })
+            return
+        for node, out in update.items():
+            if node in ("review_brief", "review_plan"):
+                continue  # 审核由 interrupt 事件负责
+            for ev in _describe(node, out):
+                ev.update({
+                    "type": "node_done",
+                    "label": NODE_LABELS.get(node, node),
+                    "elapsed_s": round(time.time() - started, 1),
+                })
+                yield sse(ev)
+
+    if completed:
+        run_context.discard_run(run_id)
 
 
 @app.get("/healthz")
@@ -187,6 +272,7 @@ def healthz():
             "search_provider": config.SEARCH_PROVIDER,
             "memory_enabled": config.MEMORY_ENABLED,
             "langfuse_enabled": observability.is_enabled(),
+            "auth_required": bool(config.APP_AUTH_TOKEN.strip()),
             "errors": errors,
         },
     )
@@ -207,33 +293,32 @@ def index(request: Request):
             "rounds_default": config.MAX_SEARCH_ROUNDS,
             "rounds_limit": config.MAX_SEARCH_ROUNDS_LIMIT,
             "max_llm_calls": config.MAX_LLM_CALLS,
+            "auth_required": bool(config.APP_AUTH_TOKEN.strip()),
         },
     )
 
 
-@app.get("/api/research/stream")
-def research_stream(
-    topic: str = Query(..., min_length=2),
-    points: str | None = Query(None, description="审核点位，逗号分隔：brief,plan；空串=不审核"),
-    max_sub: int | None = Query(None, description="子问题数量上限"),
-    rounds: int | None = Query(None, description="每个子问题最大检索轮数"),
-):
+@app.post(
+    "/api/research/stream",
+    dependencies=[Depends(security.require_auth), Depends(security.enforce_rate_limit)],
+)
+def research_stream(payload: ResearchRequest):
     # 越界参数直接 400，而不是静默降级成空报告（rounds<=0 会让 researcher 一次都不检索）
     try:
-        eff_sub, eff_rounds = config.validate_scale(max_sub, rounds)
+        eff_sub, eff_rounds = config.validate_scale(payload.max_sub, payload.rounds)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    # points 缺省时跟随 .env 的 REVIEW_POINTS；显式传空串即全自动
+    # points 缺省时跟随 .env 的 REVIEW_POINTS；显式传空列表即全自动
     review_points = (
-        list(config.REVIEW_POINTS) if points is None
-        else [p.strip() for p in points.split(",") if p.strip()]
+        list(config.REVIEW_POINTS) if payload.points is None
+        else [p.strip() for p in payload.points if p.strip()]
     )
     tid = _new_thread_id()
     cfg = thread_config(tid)
     # 规模覆盖走 state，不改全局 config —— 否则同进程内并发请求会互相覆盖
-    payload = {
+    state = {
         "run_id": tid,
-        "topic": topic,
+        "topic": payload.topic,
         "notes": [],
         "review_points": review_points,
         "max_subquestions": eff_sub,
@@ -246,30 +331,33 @@ def research_stream(
     started = time.time()
 
     def gen():
-        yield sse({"type": "start", "thread_id": tid, "topic": topic})
-        yield from _stream(payload, cfg, started)
+        yield sse({"type": "start", "thread_id": tid, "topic": payload.topic})
+        yield from _stream(state, cfg, started)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
-@app.get("/api/resume/stream")
-def resume_stream(thread_id: str = Query(...), value: str = ""):
+@app.post(
+    "/api/resume/stream",
+    dependencies=[Depends(security.require_auth), Depends(security.enforce_rate_limit)],
+)
+def resume_stream(payload: ResumeRequest):
     """human-in-the-loop：value 为空表示确认原内容，非空表示整组替换（按当前中断的 kind 解释）。"""
-    cfg = thread_config(thread_id)
-    payload = Command(resume=value or "")
-    with run_context.run_scope(thread_id):
+    cfg = thread_config(payload.thread_id)
+    command = Command(resume=payload.value or "")
+    with run_context.run_scope(payload.thread_id):
         BUDGET.reset()              # 墙钟按这次续跑重算；usage 连续累计，不重复清零
         reliability.reset_breakers()  # 保留上一段的降级记录，只清冷却中的熔断器
     started = time.time()
 
     def gen():
-        yield sse({"type": "resume", "thread_id": thread_id})
-        yield from _stream(payload, cfg, started)
+        yield sse({"type": "resume", "thread_id": payload.thread_id})
+        yield from _stream(command, cfg, started)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
-@app.get("/api/report/{thread_id}")
-def get_report(thread_id: str):
+@app.get("/api/report/{thread_id}", dependencies=[Depends(security.require_auth)])
+def get_report(thread_id: str = ApiPath(..., max_length=128)):
     state = get_research_app().get_state({"configurable": {"thread_id": thread_id}}).values or {}
     return {"thread_id": thread_id, "report": state.get("report", "")}
