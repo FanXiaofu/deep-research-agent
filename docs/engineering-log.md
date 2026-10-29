@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **144 passed**
+- 验证基线：`python -m pytest tests -q` → **149 passed**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -21,11 +21,12 @@
 | `5bd630f` | 工程记录文档 |
 | `dd5ca26` | E1：requirements.lock + CI + Docker healthcheck |
 | `c1cc3a9` | R10：writer 出口引用/链接校验 |
+| `4daa6f6` | E2：结构化日志 + 运行手册 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `4c0c23f`，tag `v0.1.0-audit-baseline` 已推送；R10 与本文档更新随后补推；
+- 远端 `main` 已包含到 `b99e405`，tag `v0.1.0-audit-baseline` 已推送；E2 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -124,6 +125,19 @@
 - 遗留：只做确定性剔除，不判断引用与论断的语义相关性；无引用/少引用的报告仍可能质量不足。
 - 提交：`c1cc3a9`。
 
+### E2 可运维性
+
+- 目标：公网服务出问题时，能按 request/thread 检索日志并完成升级、回滚、恢复。
+- 改动：
+  - `logging_config.py`：JSON 行日志、`request_id` / `thread_id` 上下文、文本格式开关；
+  - Web 中间件分配/透传 `X-Request-ID`，记录 method/path/status/duration/client；
+  - `_stream` worker 绑定 request/thread 日志上下文，异常记录完整堆栈；SSE 事件带两个 id；
+  - auth 失败/限流写结构化 warning；Ollama 上下文告警改为 logger；
+  - `docs/runbook.md`：发布前检查、启动/健康检查、升级、回滚、备份恢复、密钥轮换、常见故障、监控建议、安全默认值。
+- 验证：149 tests；真实 uvicorn 冒烟验证 JSON 行、`X-Request-ID` 透传、400 请求日志。
+- 遗留：指标（metrics）与非 root 容器未做；限流仍为单进程实现。
+- 提交：`4daa6f6`。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -131,16 +145,17 @@
 | A 基线/稳定 | 完成 | A1 |
 | B 正确性/隔离 | 完成 | B1 |
 | C 数据可靠性 | 完成 | C1 |
-| D 安全与运维 | 部分完成 | D1 已完成应用层边界；结构化日志/指标仍未做 |
-| E 部署与交付 | 部分完成 | E1 完成依赖锁、CI、Docker 重建；升级/回滚 runbook 未做 |
-| F 性能与质量 | 部分完成 | R10 完成运行时引用校验；F1 性能测量与评测拆分未做 |
+| D 安全与运维 | 部分完成 | D1 应用层安全 + E2 日志/健康检查；指标（metrics）仍未做 |
+| E 部署与交付 | 完成 | E1 依赖锁/CI/Docker；E2 日志与 runbook |
+| F 性能与质量 | 部分完成 | R10 运行时引用校验；F1 性能测量与评测拆分未做 |
 
-建议下一项：**E2 结构化日志 + 请求 ID + 升级/回滚 runbook**。当前 `/healthz` 和 Langfuse 已有，但服务端异常仍主要靠 SSE 回传，缺少可检索的结构化日志与请求关联；这直接影响公网排障。之后再做 F1 性能测量与单变量 A/B。
+建议下一项：**F1 可测量性能与单变量 A/B**。当前优化/评测数字仍来自历史批次，且 A/B 曾同时改 4 个参数；应先建立固定评测条件（同题、同模型、单变量），记录 p50/p95 延迟、token/成本与引用指标，再谈优化。没有真实模型时先补脚本与口径，不伪造数字。
 
 ## 4. 部署检查清单（公网）
 
 - [x] 依赖锁定 + CI + Docker 镜像构建（E1）
 - [x] writer 出口引用/链接校验（R10）
+- [x] 结构化日志 + 请求 ID + 升级/回滚 runbook（E2）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
@@ -164,7 +179,7 @@
 - 引用后校验只做确定性剔除，不判断论断与来源的语义相关性；无引用/少引用的报告仍可能质量不足。
 - LLM judge 与研究共用同一模型时存在系统性偏差；对外数字需更强模型复评。
 - 评测 A/B 曾同时调整 4 个参数，0.82→1.00 不能单独归因于“代码生成引用编号”（baseline 已有注册表）；README 已修正口径。
-- 结构化日志/指标、非 root 容器、升级/回滚 runbook 仍未做；CI 已在 GitHub Actions 实跑通过（run #1）。
+- 指标（metrics）、非 root 容器仍未做；CI 已在 GitHub Actions 实跑通过，日志与 runbook 已补齐。
 
 ## 6. 复现与验证
 
