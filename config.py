@@ -128,6 +128,13 @@ NOTE_MIN_CHARS = int(os.getenv("NOTE_MIN_CHARS", "200"))             # 研究笔
 NOTE_MAX_CHARS = int(os.getenv("NOTE_MAX_CHARS", "350"))             # 研究笔记字数上限
 WRITER_STRICT_GROUNDING = os.getenv("WRITER_STRICT_GROUNDING", "0") == "1"  # writer 严格 grounding 规则
 
+# ==== 证据支撑审计（P1.6）====
+# 词面覆盖默认开启（纯本地、零成本）；配置 judge 模型后才追加语义判定。
+GROUNDING_AUDIT_ENABLED = os.getenv("GROUNDING_AUDIT_ENABLED", "1") == "1"
+GROUNDING_JUDGE_MODEL = os.getenv("GROUNDING_JUDGE_MODEL", "")
+GROUNDING_MAX_CLAIMS = int(os.getenv("GROUNDING_MAX_CLAIMS", "8"))
+GROUNDING_LEXICAL_THRESHOLD = float(os.getenv("GROUNDING_LEXICAL_THRESHOLD", "0.15"))
+
 # ==== 成本估算（USD / 1M tokens；ollama 本地模型时成本为 0，价格仅用于估算展示）====
 LLM_PRICE_INPUT_PER_M = float(os.getenv("LLM_PRICE_INPUT_PER_M", "0.27"))
 LLM_PRICE_OUTPUT_PER_M = float(os.getenv("LLM_PRICE_OUTPUT_PER_M", "1.10"))
@@ -243,6 +250,12 @@ def runtime_config_errors() -> list[str]:
     if AUTH_DEFAULT_DAILY_QUOTA < 0:
         errors.append(
             f"AUTH_DEFAULT_DAILY_QUOTA 不能为负数（当前 {AUTH_DEFAULT_DAILY_QUOTA}）"
+        )
+    if GROUNDING_MAX_CLAIMS < 0:
+        errors.append(f"GROUNDING_MAX_CLAIMS 不能为负数（当前 {GROUNDING_MAX_CLAIMS}）")
+    if not 0 <= GROUNDING_LEXICAL_THRESHOLD <= 1:
+        errors.append(
+            f"GROUNDING_LEXICAL_THRESHOLD 需在 0~1（当前 {GROUNDING_LEXICAL_THRESHOLD}）"
         )
     return errors
 

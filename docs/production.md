@@ -144,7 +144,8 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 - `APP_AUTH_TOKEN` 作为 admin bootstrap/监控 token；面向用户请用 `admin.py` 创建账号并签发 token。
 - 多用户按 `user_id` 做 thread 归属与每日配额；`/metrics`、`/api/audit` 仅 admin。
 - 所有研究/续跑/报告/metrics 接口都走 Bearer；`/healthz` 公开。
-- 报告 HTML 已做白名单清洗；抓取侧已做 SSRF 防护。
+- 报告 HTML 已做白名单清洗；抓取侧已做 SSRF 防护；网页正文用不可信标签隔离并在提示词声明边界。
+- 报告出口做引用句词面覆盖/数字一致性审计；`GROUNDING_JUDGE_MODEL` 可选语义 judge（每轮最多 `GROUNDING_MAX_CLAIMS` 条，额外成本）。
 - 请求体 64KB（Caddy `request_body` + nginx `client_max_body_size` + app）、主题 500 字、审核内容 5000 字上限；每 token/IP 每分钟限流。
 - Caddy 加 HSTS、CSP、`X-Frame-Options: DENY`、`nosniff`、`Referrer-Policy`；CSS/JS 已外置，CSP 不含 `unsafe-inline`。
 - 敏感配置优先读 `<NAME>_FILE`（Docker/K8s secret）；不要把 secret 写入 `.env`/镜像。

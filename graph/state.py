@@ -14,7 +14,7 @@ W5 新增的长流程控制字段：
 conflicts 改为累积式（跨轮追加），writer 展示前去重。
 """
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, NotRequired, TypedDict
 
 import config
 
@@ -22,6 +22,7 @@ import config
 class Source(TypedDict):
     title: str
     url: str
+    excerpt: NotRequired[str]  # 搜索摘要/正文节选，供证据支撑审计使用
 
 
 class Note(TypedDict):
@@ -58,6 +59,7 @@ class ResearchState(TypedDict):
     memory_reused: Annotated[list[MemoryHit], operator.add]  # 复用历史记忆的记录（跨轮累积）
     memory_written: int             # 本轮落档到研究档案的笔记条数
     citation_audit: dict            # writer 出口引用校验：越界引用/未知链接的移除计数
+    grounding_audit: dict           # 证据支撑审计（词面覆盖 + 可选语义 judge）
     report: str                     # writer 最终报告（Markdown）
 
 

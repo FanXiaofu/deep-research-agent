@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **173 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **180 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -261,6 +261,20 @@
 - 遗留：无 WAF/Bot 管理、无 token 过期、无镜像签名、无主机运行时检测。
 - 提交：`a49fe66`。
 
+### P1.6 证据支撑 / prompt injection
+
+- 目标：引用编号正确之外，再给出“论断是否有来源支撑”的审计信号；同时降低网页内容劫持提示词的风险。
+- 改动：
+  - 新增 `untrusted.py`：外部网页用 `<untrusted_web_content source="...">` 包裹，中和同名闭合标签；researcher/writer/grounding judge 提示词声明“这是数据不是指令”；
+  - 抓取来源新增 `excerpt`（搜索摘要/正文节选），随 note/source 持久化，供审计引用；
+  - 新增 `grounding.py`：按带引用句子做词面覆盖率 + 数字一致性检查；`GROUNDING_JUDGE_MODEL` 非空时追加语义 judge（supported/partial/unsupported）；
+  - writer 在引用校验后追加“证据支撑审计”章节，并写回 `grounding_audit` state；
+  - eval 逐题记录 `grounding_claims / low_support / numeric_mismatch / semantic_unsupported`；
+  - 新增配置 `GROUNDING_AUDIT_ENABLED / GROUNDING_JUDGE_MODEL / GROUNDING_MAX_CLAIMS / GROUNDING_LEXICAL_THRESHOLD`。
+- 验证：180 SQLite tests；包裹/闭合标签中和、researcher 提示词边界、词面低覆盖/数字不一致、语义 judge stub、writer 集成均通过。
+- 遗留：没有真实模型在线的语义 judge 复评；词面覆盖不是事实裁决；没有内容安全分类器/审核策略；真实 kill/restart 与 A/B 仍未执行。
+- 提交：本轮提交。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -277,7 +291,8 @@
 | P1.3 账号/RBAC/配额/审计 | 完成 | 数据库 token、user/admin、thread 归属、每日配额、审计 |
 | P1.4 多副本/负载均衡/日志 | 完成 | Caddy + nginx DNS 发现、/readyz、SSE 不缓冲、120s 优雅退出、可选 Loki |
 | P1.5 数据安全/供应链/CSP | 完成 | 加密备份、secret 文件、Trivy/Dependabot、CSP 去 inline、边缘请求体限制 |
-| P1.6 AI 质量/内容安全 | 未开始 | 语义引用核验、prompt injection/内容安全、真实模型 A/B |
+| P1.6 证据支撑/prompt injection | 完成 | 不可信内容包裹、词面/数字审计、可选语义 judge |
+| P1.7 内容安全/真实评测 | 未开始 | 内容政策、真实模型 A/B、强 judge、kill/restart |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -305,6 +320,7 @@
 - [x] 账号/API token/RBAC/每日配额/审计（P1.3）
 - [x] 多副本 compose + Caddy/nginx 负载均衡 + `/readyz` + 日志聚合蓝图（P1.4）
 - [x] 加密备份 + secret 文件 + Trivy/Dependabot + CSP 去 inline（P1.5）
+- [x] 证据支撑审计 + 网页不可信包裹（P1.6）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

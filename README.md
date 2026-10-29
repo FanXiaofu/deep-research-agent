@@ -128,6 +128,8 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 运行指标：`GET /metrics` 输出 Prometheus 文本；`/metrics.json` 输出 JSON 快照（请求计数 + research 状态）；仅 admin
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
+- Prompt injection：网页内容用 `<untrusted_web_content>` 包裹，researcher/writer/grounding judge 都明确声明“这是数据不是指令”；同名闭合标签会被中和
+- 证据支撑审计：报告出口按引用句子做词面覆盖/数字一致性检查；配置 `GROUNDING_JUDGE_MODEL` 后额外调用语义 judge 判 supported/partial/unsupported
 - 前端 CSP：CSS/JS 已拆到 `/static`，Caddy CSP 不再含 `unsafe-inline`；Caddy/nginx 均限制 64KB 请求体
 - 数据安全：备份支持 Fernet 加密、Postgres `pg_dump` 加密备份、rclone 异地同步；敏感配置支持 `<NAME>_FILE` secret 挂载；镜像由 Trivy 扫描，Dependabot 每周更新
 - WAF 不在仓库内：公网建议在 Cloudflare/云 WAF 层加托管规则、Bot 管理与源站隐藏，详见 [docs/security.md](docs/security.md)
@@ -294,6 +296,8 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `APP_AUTH_TOKEN` | 静态 Bearer token（admin）；留空时允许本机回环或使用数据库账号 token |
 | `APP_AUTH_TOKENS` | 多个静态 admin token，逗号分隔；与 `APP_AUTH_TOKEN` 合并 |
 | `<NAME>_FILE` | 敏感配置从文件读取（Docker/K8s secret），优先于同名环境变量；支持 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key |
+| `GROUNDING_AUDIT_ENABLED` / `GROUNDING_LEXICAL_THRESHOLD` | 是否在报告出口做证据支撑审计，以及词面覆盖阈值（默认开 / 0.15） |
+| `GROUNDING_JUDGE_MODEL` / `GROUNDING_MAX_CLAIMS` | 语义 judge 模型（留空只用词面审计）与最多核查句数（默认 8） |
 | `BACKUP_ENCRYPTION_KEY` | 备份 Fernet key；`maintenance.py backup --encrypt` 使用 |
 | `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |
 | `AUTH_DEFAULT_DAILY_QUOTA` | 新建用户的默认每日研究配额（默认 20；0=不限） |
@@ -364,7 +368,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 173 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 180 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -421,6 +425,8 @@ python -m pytest tests -q     # 173 个用例 + 6 个集成用例（4 Postgres /
   - 单实例 compose 保持默认；多副本需要 `--scale app=2` 与共享 Postgres/Redis
 - [x] **P1.5 安全与供应链**：Fernet 加密备份 + `pg-backup` + rclone 异地；`<NAME>_FILE` secret；CSP 去 `unsafe-inline`（CSS/JS 外置）；Caddy/nginx 64KB 请求体限制；Trivy CI + Dependabot
   - 仍无内置 WAF、token 过期、镜像签名；WAF 建议部署在 Cloudflare/云 WAF 层
+- [x] **P1.6 证据支撑 / prompt injection**：网页内容用不可信标签包裹并在提示词声明边界；报告出口做引用句词面覆盖/数字一致性审计；可选语义 judge（默认关闭，避免额外成本）
+  - 内容安全政策、真实模型在线 A/B、kill/restart 复跑仍未完成；语义 judge 分数只作审计信号
 
 ## 评测体系（W3）
 

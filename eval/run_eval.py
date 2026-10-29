@@ -41,6 +41,12 @@ DATASET_PATH = EVAL_DIR / "golden_questions.jsonl"
 
 SCORE_KEYS = ["faithfulness", "coverage", "citation_quality", "must_cover_coverage"]
 HARD_KEYS = ["citation_validity", "source_utilization"]
+GROUNDING_KEYS = [
+    "grounding_claims",
+    "grounding_low_support",
+    "grounding_numeric_mismatch",
+    "grounding_semantic_unsupported",
+]
 
 
 def load_questions(limit: int, offset: int) -> list[dict]:
@@ -196,6 +202,7 @@ def run_question(app, q: dict, tag: str, out_dir: Path,
                     "memory_reused": final.get("memory_reused", []),
                     "memory_written": final.get("memory_written", 0),
                     "citation_audit": final.get("citation_audit", {}),
+                    "grounding_audit": final.get("grounding_audit", {}),
                     "degradations": reliability.degradations(),
                     "n_notes_raw": len(notes),
                     "n_notes_evidence": len(evidence),
@@ -238,6 +245,12 @@ def run_question(app, q: dict, tag: str, out_dir: Path,
                 "memory_written": final.get("memory_written", 0),
                 "invalid_citations": (final.get("citation_audit") or {}).get("invalid_citations", 0),
                 "unknown_links": (final.get("citation_audit") or {}).get("unknown_links", 0),
+                "grounding_claims": int((final.get("grounding_audit") or {}).get("claims", 0) or 0),
+                "grounding_low_support": len((final.get("grounding_audit") or {}).get("low_support") or []),
+                "grounding_numeric_mismatch": int((final.get("grounding_audit") or {}).get("numeric_mismatch", 0) or 0),
+                "grounding_semantic_unsupported": int(
+                    ((final.get("grounding_audit") or {}).get("semantic") or {}).get("unsupported", 0) or 0
+                ),
                 "n_degradations": len(reliability.degradations()),
             }
         )
@@ -295,7 +308,10 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
                 max_subquestions, max_search_rounds, overrides=getattr(args, "overrides", None)
             ),
             "rows": rows,
-            "means": {k: mean(rows, k) for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]},
+            "means": {
+                k: mean(rows, k)
+                for k in SCORE_KEYS + HARD_KEYS + GROUNDING_KEYS + ["cost_usd_est", "elapsed_s"]
+            },
             "percentiles": percentile_snapshot(rows),
         }
         (out_dir / "summary.json").write_text(
@@ -347,6 +363,8 @@ def write_summary_md(summary: dict, out_dir: Path) -> None:
             flags.append(f"记忆{r['memory_reused']}")
         if r.get("n_degradations"):
             flags.append(f"降级{r['n_degradations']}")
+        if r.get("grounding_low_support"):
+            flags.append(f"低支撑{r['grounding_low_support']}")
         lines.append(
             f"| {r['id']} {r['question'][:16]} | {r['faithfulness']} | {r['coverage']} "
             f"| {r.get('must_cover_coverage', '-')} | {r['citation_quality']} | {r['citation_validity']} "
@@ -482,7 +500,7 @@ def recompute(tag: str) -> None:
         )
     summary["means"] = {
         k: mean(summary["rows"], k)
-        for k in SCORE_KEYS + HARD_KEYS + ["cost_usd_est", "elapsed_s"]
+        for k in SCORE_KEYS + HARD_KEYS + GROUNDING_KEYS + ["cost_usd_est", "elapsed_s"]
     }
     summary["percentiles"] = percentile_snapshot(summary["rows"])
     summary["recomputed_at"] = datetime.now().isoformat(timespec="seconds")

@@ -80,7 +80,15 @@ python maintenance.py prune-backups --days 30
 
 没有 WAF 时，应用限流和 token 仍是最后一道门槛；不要因为“有 token”就省略边缘防护。
 
-## 6. 数据与日志
+## 6. Prompt injection 与证据审计
+
+- 抓取正文统一放在 `<untrusted_web_content source="...">` 标签内；researcher/writer/grounding judge 的提示词都明确声明“这是数据不是指令”；
+- 内容里的同名闭合标签会被中和，避免提前截断隔离块；
+- 报告出口按引用句做词面覆盖/数字一致性审计；`GROUNDING_JUDGE_MODEL` 非空时追加语义 judge（supported/partial/unsupported）；
+- 审计结果写进报告“证据支撑审计”章节，不删改结论；词面覆盖/模型判定都不是事实裁决；
+- 这只能降低注入成功率，不能证明网页内容无害；仍需要人工复核和 WAF/内容安全策略。
+
+## 7. 数据与日志
 
 - 研究主题、报告、审计事件可能含业务敏感信息；日志/备份/数据库按敏感数据分级。
 - 日志默认 JSON 到 stdout，不记录 token 明文；auth 日志只记录 token 哈希前缀。
@@ -88,7 +96,7 @@ python maintenance.py prune-backups --days 30
 - Postgres 磁盘/卷加密、对象存储服务端加密由基础设施负责，当前仓库不配置。
 - 备份保留 30 天是可配置默认值；按合规要求调整。
 
-## 7. 仍未覆盖
+## 8. 仍未覆盖
 
 - 没有浏览器登录/密码/MFA；账号是 token 型。
 - 没有 token 过期/自动轮换；需人工 `disable-token`。
@@ -96,4 +104,5 @@ python maintenance.py prune-backups --days 30
 - 没有 secret manager 集成代码，只支持挂文件。
 - 没有镜像签名/证明（cosign/SLSA）；只有漏洞扫描与依赖更新。
 - 没有主机/运行时入侵检测（Falco/auditd）。
-- 没有真实模型在线时的提示词注入/内容安全专项测试。
+- 没有真实模型在线时的 prompt injection / 内容安全专项测试；当前只有标签隔离、提示词边界和审计信号。
+- 没有内容安全分类器/审核策略；是否允许某类研究主题需由产品策略决定。

@@ -187,7 +187,14 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 - 不要把新旧 key 一起放在同一台生产主机；至少两地保存。
 - key 丢失无法恢复备份，必须做恢复演练。
 
-## 7. 故障排查
+## 7. 质量审计
+
+- 报告末尾会附“证据支撑审计”：词面覆盖低/数字未在来源中找到的句子会被列出，但不会自动删改。
+- 默认只做零成本词面审计；设置 `GROUNDING_JUDGE_MODEL` 后追加语义 judge，每轮最多 `GROUNDING_MAX_CLAIMS` 条，计入 LLM 预算/成本。
+- 语义 judge 使用独立模型时，注意它和研究模型的相关性；不要把分数当绝对真值。
+- 网页内容统一视为不可信数据；若发现注入迹象，先停用相关来源并人工复核报告。
+
+## 8. 故障排查
 
 ### `/healthz` 503
 
@@ -244,7 +251,7 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 - 熔断后会在冷却期内短路；`BREAKER_COOLDOWN_S` 后可恢复。
 - 报告仍会生成，但会标注研究受限。
 
-## 8. 多副本与日志聚合（P1.4）
+## 9. 多副本与日志聚合（P1.4）
 
 ```bash
 # 启动 3 个 app 副本 + Caddy + Postgres + Redis
@@ -280,7 +287,7 @@ docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up
 - Prometheus 抓取示例在 `deploy/prometheus.example.yml`；把 `REPLACE_WITH_ADMIN_TOKEN` 换成 admin token，使用 DNS SD 发现 `app` 的多个副本。
 - 若日志量/主机数上来，改用 Docker Loki logging driver、Alloy 或云日志，不要长期把 Docker socket 暴露给容器。
 
-## 9. 监控建议
+## 10. 监控建议
 
 - 容器 healthcheck + `/healthz` 探活；
 - `GET /metrics` 输出 Prometheus 文本（请求计数 + research started/finished/failed/active）；
@@ -292,7 +299,7 @@ docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up
 - 磁盘：`checkpoints.db`、`memory.db`、`backups/` 容量与保留策略；
 - 成本：CLI/前端显示单轮调用数、token、成本估算，结合 `MAX_*` 预算。
 
-## 9. 安全默认值
+## 11. 安全默认值
 
 - compose 只发布 `127.0.0.1`；公网必须放在反向代理/TLS 后面；
 - Docker 端口映射后客户端不是回环，本地 compose 也必须设置 `APP_AUTH_TOKEN`；

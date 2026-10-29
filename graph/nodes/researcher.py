@@ -19,10 +19,12 @@ from graph.state import Note, Source, effective_max_search_rounds
 from llm.client import chat_json_safe
 from search import get_search_provider
 from search.base import SearchProvider, SearchResult
+from untrusted import GUARD, wrap
 
 # 每个网页进入提示词的正文上限（控制 token 成本；eval A/B 调优项，见 config.RESEARCH_PAGE_CHARS）
 
 ROUND_PROMPT = """你是研究助理。研究子问题：{sub}
+{guard}
 {prev_section}
 本轮搜索到的网页（含正文节选）：
 {blocks}
@@ -48,7 +50,7 @@ def _build_blocks(results: list[SearchResult], pages: dict) -> str:
         block = f"[{i}] {r.title} | {r.url}\n摘要：{r.snippet[:300]}"
         if body:
             block += f"\n正文节选：{body}"
-        blocks.append(block)
+        blocks.append(wrap(block, source=r.url))
     return "\n\n".join(blocks)
 
 
@@ -93,11 +95,17 @@ def _research_one(provider: SearchProvider, subquestion: str, max_rounds: int) -
         results = [r for r in results if r.url and r.url not in seen_urls]
         if search_failed or not results:
             break
+        pages = _fetch_all(results)
         for r in results:
             seen_urls.add(r.url)
-            used[r.url] = {"title": r.title or r.url, "url": r.url}
+            page = pages.get(r.url)
+            excerpt = (r.snippet or (page.text if page and page.ok else ""))[:500]
+            used[r.url] = {
+                "title": r.title or r.url,
+                "url": r.url,
+                "excerpt": excerpt,
+            }
 
-        pages = _fetch_all(results)
         prev_section = (
             f"之前几轮已收集的笔记：\n{chr(10).join(content_parts)}\n" if content_parts else ""
         )
@@ -106,6 +114,7 @@ def _research_one(provider: SearchProvider, subquestion: str, max_rounds: int) -
                 "role": "user",
                 "content": ROUND_PROMPT.format(
                     sub=subquestion,
+                    guard=GUARD,
                     prev_section=prev_section,
                     blocks=_build_blocks(results, pages),
                     note_min=config.NOTE_MIN_CHARS,
