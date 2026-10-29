@@ -36,7 +36,7 @@
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `1c2fe02`，tag `v0.1.0-audit-baseline` 已推送；P1.4 / P1.5 已推送；
+- 远端 `main` 已包含到 `1b32da3`，tag `v0.1.0-audit-baseline` 已推送；P1.4 / P1.5 / P1.6 已推送；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -272,7 +272,7 @@
   - writer 在引用校验后追加“证据支撑审计”章节，并写回 `grounding_audit` state；
   - eval 逐题记录 `grounding_claims / low_support / numeric_mismatch / semantic_unsupported`；
   - 新增配置 `GROUNDING_AUDIT_ENABLED / GROUNDING_JUDGE_MODEL / GROUNDING_MAX_CLAIMS / GROUNDING_LEXICAL_THRESHOLD`。
-- 验证：180 SQLite tests；包裹/闭合标签中和、researcher 提示词边界、词面低覆盖/数字不一致、语义 judge stub、writer 集成均通过。
+- 验证：180 SQLite tests；包裹/闭合标签中和、researcher 提示词边界、词面低覆盖/数字不一致、语义 judge stub、writer 集成均通过；CI run #26 七个 job 全绿。
 - 遗留：没有真实模型在线的语义 judge 复评；词面覆盖不是事实裁决；没有内容安全分类器/审核策略；真实 kill/restart 与 A/B 仍未执行。
 - 提交：`58b2191`。
 
