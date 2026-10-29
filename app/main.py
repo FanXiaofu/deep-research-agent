@@ -26,6 +26,7 @@ from pathlib import Path
 import config
 import logging_config
 import markdown as md_lib
+import metrics
 import nh3
 import observability
 import reliability
@@ -47,6 +48,11 @@ async def lifespan(_app: FastAPI):
     # 配置错误在启动时暴露，而不是等到检索阶段退化成空报告
     logging_config.setup_logging(config.LOG_LEVEL, config.LOG_JSON)
     config.validate_runtime_config()
+    if not config.APP_AUTH_TOKEN.strip() and Path("/.dockerenv").exists():
+        logger.warning(
+            "docker_without_auth_token",
+            extra={"path": "/"},
+        )
     yield
 
 
@@ -85,6 +91,7 @@ async def request_logging(request: Request, call_next):
     client = request.client.host if request.client else "-"
     try:
         response = await call_next(request)
+        metrics.record_request(request.url.path, response.status_code)
         if request.url.path != "/healthz":
             logger.info(
                 "http_request",
@@ -255,6 +262,8 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
     completed = False
 
     def worker():
+        outcome = "failed"
+        metrics.research_started()
         with (
             logging_config.request_scope(request_id),
             logging_config.thread_scope(run_id),
@@ -265,13 +274,22 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
                 try:
                     for update in get_research_app().stream(payload, cfg, stream_mode="updates"):
                         events.put(("update", update))
-                    state = get_research_app().get_state(cfg).values or {}
-                    events.put(("report", _report_event(state, time.time() - started)))
+                        if "__interrupt__" in update:
+                            outcome = "interrupted"
+                            break
+                    else:
+                        state = get_research_app().get_state(cfg).values or {}
+                        events.put(("report", _report_event(state, time.time() - started)))
+                        outcome = "completed"
                 except Exception as exc:
                     logger.exception("research_failed", extra={"thread_id": run_id})
                     events.put(("error", f"{type(exc).__name__}: {exc}"))
                 finally:
-                    logger.info("research_finished", extra={"thread_id": run_id})
+                    logger.info(
+                        "research_finished",
+                        extra={"thread_id": run_id, "outcome": outcome},
+                    )
+                    metrics.research_finished(outcome)
                     events.put(("done", None))
 
     threading.Thread(target=worker, daemon=True).start()
@@ -320,6 +338,12 @@ def _stream(payload, cfg: dict, started: float, request_id: str | None = None):
 
     if completed:
         run_context.discard_run(run_id)
+
+
+@app.get("/metrics", dependencies=[Depends(security.require_auth)])
+def metrics_endpoint():
+    """进程级运行指标；JSON 便于直接采集，无需额外依赖。"""
+    return metrics.snapshot()
 
 
 @app.get("/healthz")

@@ -10,6 +10,8 @@
 - 日志：默认 JSON 行到 stdout，关键字段 `request_id` / `thread_id` / `level` / `message`。
 - 数据：`checkpoints.db`（断点）与 `memory.db`（研究档案），都需要持久化。
 - 健康检查：`GET /healthz`（200/503，只读本地配置，不访问外部依赖）。
+- 运行指标：`GET /metrics`（请求计数 + research 状态；需 token，本机回环可免）。
+- 容器用户：`appuser`（UID 10001），非 root。
 
 ## 1. 发布前检查
 
@@ -33,12 +35,19 @@ python maintenance.py backup --out backups
 # 本机开发
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
-# Docker
+# Docker（本地也必须设置 APP_AUTH_TOKEN：端口映射后客户端不是回环）
 docker compose up -d
 curl -s http://127.0.0.1:8000/healthz
 ```
 
 期望：`{"status":"ok",...}`。503 表示配置自检失败，`errors` 会列出具体变量。
+
+Linux 主机挂载 `./data` 时，先确保 UID 10001 可写：
+
+```bash
+mkdir -p data
+sudo chown -R 10001:10001 data
+```
 
 ## 3. 升级
 
@@ -179,6 +188,8 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 ## 8. 监控建议
 
 - 容器 healthcheck + `/healthz` 探活；
+- `GET /metrics` 采集请求计数与 research started/finished/failed/active：
+  `curl -H "Authorization: Bearer $APP_AUTH_TOKEN" http://127.0.0.1:8000/metrics`
 - 日志按 `level=ERROR` 与 `request_id/thread_id` 聚合；
 - Langfuse（可选）看每轮 trace、token、延迟；
 - 磁盘：`checkpoints.db`、`memory.db`、`backups/` 容量与保留策略；
@@ -187,6 +198,8 @@ python maintenance.py restore backups/<last-good>.db --target checkpoints.db --y
 ## 9. 安全默认值
 
 - compose 只发布 `127.0.0.1`；公网必须放在反向代理/TLS 后面；
+- Docker 端口映射后客户端不是回环，本地 compose 也必须设置 `APP_AUTH_TOKEN`；
+- 容器以 `appuser`（UID 10001）运行；Linux bind mount 需提前 chown；
 - 未配置 `APP_AUTH_TOKEN` 只允许回环；
 - 报告 HTML 经白名单清洗；抓取只允许公网 http/https；
 - 请求体、主题、审核内容、抓取字节均有上限；

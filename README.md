@@ -123,6 +123,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 健康检查：`GET /healthz` 返回配置自检结果（模型/搜索/记忆/Langfuse）；缺 key 或数值非法时返回 503 与具体错误项，不发起外部请求
 - 请求隔离：每个请求使用独立 thread_id（时间戳 + UUID），usage / 预算 / 降级 / 熔断按 run 隔离；HITL 续跑保留 usage 连续计数，只重算墙钟
 - 结构化日志：默认 JSON 行输出到 stdout，含 `request_id` / `thread_id`；响应头透传 `X-Request-ID`，SSE 事件也带这两个 id，便于按一次请求/一轮研究检索日志
+- 运行指标：`GET /metrics` 返回请求计数与 research started/finished/failed/active；需认证，本机回环可免
 - 访问控制：设置 `APP_AUTH_TOKEN` 后所有研究 API 要求 `Authorization: Bearer <token>`；留空时只允许本机回环访问。页面顶部有令牌输入框，令牌只保存在内存中，不写 localStorage
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
@@ -138,6 +139,8 @@ docker compose up -d
 本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像从 `requirements.lock` 安装，构建约 413MB，容器内 `/healthz` 已实测 200。
 
 > 公网部署前必须设置 `APP_AUTH_TOKEN`（足够长的随机值），并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
+>
+> Docker 端口映射后，容器内看到的客户端 IP 不是回环地址；**本地 compose 也必须设置 `APP_AUTH_TOKEN`**，否则研究/续跑/指标接口会返回 403（`/healthz` 仍可用）。镜像以非 root 用户 `appuser`（UID 10001）运行；Linux 上挂载 `./data` 时需 `sudo chown -R 10001:10001 data`。
 
 ## CI 与可复现构建（E1）
 
@@ -270,7 +273,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 154 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志、评测分位数/单变量覆盖、writer 降级
+python -m pytest tests -q     # 156 个用例：预算判定、LLM 超时/重试、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、引用后校验、结构化日志/指标、评测分位数/单变量覆盖、writer 降级
 ```
 
 ## 里程碑
@@ -313,6 +316,8 @@ python -m pytest tests -q     # 154 个用例：预算判定、LLM 超时/重试
   - 测试 149 个；真实 uvicorn 验证 JSON 行与 request_id 透传
 - [x] **F1 可测量评测**：`--set KEY=VALUE` 单变量覆盖；汇总输出 p50/p95；`JUDGE_MODEL` 支持独立 judge；历史 baseline/tuned 批次已重算分位数
   - 测试 154 个；历史批次 p50/p95 见 [comparison.md](eval/results/comparison.md)；真实单变量批次需模型在线时补跑
+- [x] **D3 指标与非 root 容器**：`GET /metrics`（请求计数 + research 状态）；镜像改为 UID 10001 非 root 运行；Docker 无 token 启动时写 warning
+  - 测试 156 个；容器内 `id -u` = 10001，`/healthz` 200，带 token 的 `/metrics` 正常
 
 ## 评测体系（W3）
 

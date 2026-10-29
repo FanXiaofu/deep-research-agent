@@ -11,9 +11,13 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
 COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
 
-COPY . .
+RUN useradd --create-home --uid 10001 appuser
 
-RUN mkdir -p data reports
+COPY --chown=appuser:appuser . .
+
+RUN mkdir -p data reports && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

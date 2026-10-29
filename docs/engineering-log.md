@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **149 passed**
+- 验证基线：`python -m pytest tests -q` → **154 passed**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -22,11 +22,12 @@
 | `dd5ca26` | E1：requirements.lock + CI + Docker healthcheck |
 | `c1cc3a9` | R10：writer 出口引用/链接校验 |
 | `4daa6f6` | E2：结构化日志 + 运行手册 |
+| `2f732ba` | F1：可测量评测 + 单变量覆盖 |
 
 推送状态：
 
 - 已通过 SSH 推送成功：`origin = ssh://git@ssh.github.com:443/FanXiaofu/deep-research-agent.git`；
-- 远端 `main` 已包含到 `b99e405`，tag `v0.1.0-audit-baseline` 已推送；E2 与本文档更新随后补推；
+- 远端 `main` 已包含到 `9d2d677`，tag `v0.1.0-audit-baseline` 已推送；F1 与本文档更新随后补推；
 - 本机用 `core.sshCommand` 指定专用 key 与 `known_hosts`，不再依赖已失效的 GCM token。
 
 ## 2. 阶段记录
@@ -138,6 +139,22 @@
 - 遗留：指标（metrics）与非 root 容器未做；限流仍为单进程实现。
 - 提交：`4daa6f6`。
 
+### F1 可测量评测
+
+- 目标：让 A/B 可按单变量执行，并能看到长尾（p50/p95）而不是只看均值。
+- 改动：
+  - `eval/run_eval.py --set KEY=VALUE`：按 config 现有类型解析 int/float/bool/str，覆盖后写入 config snapshot；
+  - summary / comparison 增加耗时、成本、输入/输出 tokens 的 p50/p95；
+  - `JUDGE_MODEL` 支持独立 judge 模型，留空复用研究模型；
+  - 历史 baseline/tuned 批次用 `--recompute` 重算分位数，不重跑研究。
+- 验证：
+  - 154 tests；
+  - 历史批次（同一批数据，非新单变量实验）：baseline 耗时 p50 63.7s / p95 88.755s，tuned p50 72.25s / p95 82.13s；
+  - 成本 p50 0.004/0.005 USD；输入 tokens p50 9917/11796.5；
+  - 本地 Ollama 当时不可用，未跑新的真实单变量批次。
+- 遗留：历史 A/B 仍同时改了 4 个参数，不能替代单变量结论；真实单变量实验与独立强 judge 复评需要模型在线时补跑。
+- 提交：`2f732ba`。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -147,15 +164,16 @@
 | C 数据可靠性 | 完成 | C1 |
 | D 安全与运维 | 部分完成 | D1 应用层安全 + E2 日志/健康检查；指标（metrics）仍未做 |
 | E 部署与交付 | 完成 | E1 依赖锁/CI/Docker；E2 日志与 runbook |
-| F 性能与质量 | 部分完成 | R10 运行时引用校验；F1 性能测量与评测拆分未做 |
+| F 性能与质量 | 部分完成 | R10 引用校验 + F1 分位数/单变量工具；真实单变量批次待模型在线 |
 
-建议下一项：**F1 可测量性能与单变量 A/B**。当前优化/评测数字仍来自历史批次，且 A/B 曾同时改 4 个参数；应先建立固定评测条件（同题、同模型、单变量），记录 p50/p95 延迟、token/成本与引用指标，再谈优化。没有真实模型时先补脚本与口径，不伪造数字。
+建议下一项：**D3 运行指标 + 非 root 容器**。日志、健康检查和 runbook 已有，但还缺少可直接采集的运行指标；容器目前仍以 root 运行。完成这两项后，A-F 的工程化基线就闭环；F1 的真实单变量批次等模型可用时再补，不伪造数字。
 
 ## 4. 部署检查清单（公网）
 
 - [x] 依赖锁定 + CI + Docker 镜像构建（E1）
 - [x] writer 出口引用/链接校验（R10）
 - [x] 结构化日志 + 请求 ID + 升级/回滚 runbook（E2）
+- [x] 分位数/单变量评测工具 + 历史批次重算（F1）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token
