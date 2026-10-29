@@ -85,10 +85,13 @@ Render 注入 `PORT`（通常是 `10000`）。Dockerfile 使用：
 配置了 `DATABASE_URL` 后：
 
 - checkpoint；
-- 研究记忆；
 - 账号/API token/配额/审计
 
 都在 Postgres。容器本地文件系统是临时的，重建后不会丢研究状态。
+
+`render.yaml` 首次把 `MEMORY_ENABLED` 设为 `false`，避免 Postgres 冷启动/建表拖住 writer 之后的归档；确认稳定后可在 Render 环境变量改为 `true` 再重新部署。开启后研究记忆也存 Postgres。
+
+如果页面在 writer 后断流，前端会自动调用 `/api/report/<thread_id>` 从 checkpoint 取回报告；timeline 会显示当前 thread id。
 
 ### 休眠与数据库期限
 

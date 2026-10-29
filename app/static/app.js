@@ -21,6 +21,7 @@ function handle(data) {
   if (data.type === "start") {
     threadId = data.thread_id;
     status("研究中…（" + esc(data.topic) + "）");
+    addEvent("🧵 研究线程", "<code>" + esc(threadId) + "</code>", "");
   } else if (data.type === "node_done") {
     let body = "";
     if (data.node === "coordinator") body = "生成研究任务书：<i>" + esc(data.brief.slice(0, 80)) + "…</i>";
@@ -90,6 +91,26 @@ function authHeaders() {
   return token ? { Authorization: "Bearer " + token } : {};
 }
 
+async function recoverReport() {
+  if (lastMd || !threadId) return false;
+  try {
+    const resp = await fetch("/api/report/" + encodeURIComponent(threadId), {
+      headers: authHeaders(),
+    });
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    if (!data.report) return false;
+    lastMd = data.report;
+    document.getElementById("report").innerHTML =
+      data.html || "<pre>" + esc(data.report) + "</pre>";
+    show("report-panel");
+    addEvent("📄 报告已恢复", "SSE 已结束，已从 checkpoint 取回报告", "");
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function listen(url, body) {
   setBtn(true);
   show("timeline-panel");
@@ -139,6 +160,12 @@ function listen(url, body) {
     } catch (e) {
       addEvent("❌ 连接中断", `<span class='err'>${esc(e.message || "读取响应失败")}</span>`, "");
     } finally {
+      if (!lastMd) {
+        const recovered = await recoverReport();
+        if (!recovered && threadId) {
+          addEvent("⚠ 报告暂未取到", "线程 " + esc(threadId) + " 仍在收尾，可稍后刷新重试", "");
+        }
+      }
       done();
     }
   })();

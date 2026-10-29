@@ -32,8 +32,9 @@ services:
         fromDatabase:
           name: deep-research-db
           property: connectionString
+      # 首次部署先关闭长期记忆，避免 Postgres 冷启动/建表拖住 writer 之后的归档
       - key: MEMORY_ENABLED
-        value: "true"
+        value: "false"
       - key: AGENT_MODE
         value: "on"
       - key: AGENT_MAX_STEPS

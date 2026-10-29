@@ -158,7 +158,7 @@ def _connect(db_path: str | None = None):
             raise RuntimeError(
                 "DATABASE_URL 已配置但未安装 psycopg（pip install 'psycopg[binary]'）"
             )
-        conn = psycopg.connect(config.DATABASE_URL)
+        conn = psycopg.connect(config.DATABASE_URL, connect_timeout=5)
         _ensure_postgres(conn)
         return conn
     conn = db.connect(db_path or config.MEMORY_DB, timeout=15)

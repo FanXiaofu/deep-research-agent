@@ -543,4 +543,9 @@ def get_report(request: Request, thread_id: str = ApiPath(..., max_length=128)):
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     state = get_research_app().get_state({"configurable": {"thread_id": thread_id}}).values or {}
-    return {"thread_id": thread_id, "report": state.get("report", "")}
+    report = state.get("report", "")
+    return {
+        "thread_id": thread_id,
+        "report": report,
+        "html": render_report_html(report) if report else "",
+    }

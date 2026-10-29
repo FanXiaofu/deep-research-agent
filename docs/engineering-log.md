@@ -346,6 +346,7 @@
 - SSE `_stream` 每 15 秒发送注释心跳，避免 Render/代理在长时间无节点事件时断开。
 - 文档：`docs/deploy-render.md`；首次 Blueprint 需填 `LLM_API_KEY`、`SEARCH_API_KEY`、`APP_AUTH_TOKEN`。
 - 限制：单实例；免费 Web 会休眠、免费 Postgres 有期限；多实例需额外 Key Value/Redis。
+- 修复 writer 后归档卡住/SSE 断流：memory Postgres connect_timeout=5；前端断流后自动从 `/api/report/<thread_id>` 恢复报告；Render 首次关闭 `MEMORY_ENABLED`。
 
 ## 3. 路线状态
 
