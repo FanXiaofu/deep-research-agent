@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **183 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **185 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -300,6 +300,14 @@
 - 验证：183 SQLite tests；真实 20 题与 kill/restart 记录见 `docs/eval-p17-smoke.md`。
 - 提交：`451c818`。
 
+### 评测集 v2（分层扩充）
+
+- 数据集从 20 题扩到 **110 题**：80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial。
+- `run_eval.py` 增加 `--suite all|smoke|core|regression|adversarial|holdout`；`--limit/--offset` 在子集过滤后生效；summary 记录 suite。
+- 新增题型覆盖：后端/数据库/消息队列/容量规划/数据工程/可观测性/成本估算/信息不足/争议分析/非技术沟通/时效性；对抗集覆盖提示词注入、隐私、伪造引用、错误前提、SSRF/XSS、越界引用等。
+- 验证：185 SQLite tests；数据集唯一性/分层计数/筛选测试；文档 `docs/eval-dataset.md`。
+- 遗留：110 题仍不是生产真理；同 judge 只能做回归；adversarial 的期望行为需要独立安全 judge/人工复核；holdout 不应参与调参。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -319,6 +327,7 @@
 | P1.6 证据支撑/prompt injection | 完成 | 不可信内容包裹、词面/数字审计、可选语义 judge |
 | P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计 |
 | P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；独立强 judge 未接入 |
+| 评测集 v2 | 完成 | 110 题分层：80 core + 30 adversarial；suite 过滤 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -349,6 +358,7 @@
 - [x] 证据支撑审计 + 网页不可信包裹（P1.6）
 - [x] 真实模型 1 题 smoke + 可选内容安全审计（P1.7）
 - [x] 20 题同 judge baseline + kill/restart 续跑（P1.8）
+- [x] 评测集扩到 110 题并支持 suite 分层
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

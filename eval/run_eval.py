@@ -22,7 +22,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 以脚本方式运行时把项目根目录加入可导入路径
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # 项目根目录
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # 直接 import run_eval 时也能找到 judge.py
 
 import config
 import memory
@@ -49,8 +50,13 @@ GROUNDING_KEYS = [
 ]
 
 
-def load_questions(limit: int, offset: int) -> list[dict]:
+SUITES = ("all", "smoke", "core", "regression", "adversarial", "holdout")
+
+
+def load_questions(limit: int, offset: int, suite: str = "all") -> list[dict]:
     questions = [json.loads(line) for line in DATASET_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if suite != "all":
+        questions = [q for q in questions if suite in (q.get("suites") or [])]
     return questions[offset: offset + limit]
 
 
@@ -268,7 +274,7 @@ def mean(rows: list[dict], key: str):
 
 
 def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
-    questions = load_questions(args.limit, args.offset)
+    questions = load_questions(args.limit, args.offset, args.suite)
     if not questions:
         raise SystemExit("评测集为空或 offset 越界")
     out_dir = RESULTS_DIR / args.tag
@@ -305,6 +311,7 @@ def evaluate(args, max_subquestions: int, max_search_rounds: int) -> None:
         # 每题落盘一次，中途中断也有部分结果
         summary = {
             "tag": args.tag,
+            "suite": args.suite,
             "finished_at": datetime.now().isoformat(timespec="seconds"),
             "config": config_snapshot(
                 max_subquestions, max_search_rounds, overrides=getattr(args, "overrides", None)
@@ -332,7 +339,7 @@ def write_summary_md(summary: dict, out_dir: Path) -> None:
     lines = [
         f"# 评测批次：{summary['tag']}",
         "",
-        f"- 时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：`{judge_model}`",
+        f"- 子集：`{summary.get('suite', 'all')}`　|　时间：{summary['finished_at']}　|　研究模型：`{cfg['llm_model']}`　|　judge：`{judge_model}`",
         f"- 配置：page_chars={cfg.get('research_page_chars', '-')}, "
         f"note={cfg.get('note_min_chars', '-')}~{cfg.get('note_max_chars', '-')}"
         f", strict_grounding={cfg.get('writer_strict_grounding', '-')}"
@@ -518,8 +525,14 @@ def recompute(tag: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="深度研究助手评测")
     parser.add_argument("--tag", help="批次名（baseline / tuned ...）")
-    parser.add_argument("--limit", type=int, default=8, help="评测题数（默认 8，全集 20 题）")
+    parser.add_argument("--limit", type=int, default=8, help="评测题数（默认 8；core 80 / adversarial 30）")
     parser.add_argument("--offset", type=int, default=0, help="从第几题开始")
+    parser.add_argument(
+        "--suite",
+        choices=SUITES,
+        default="all",
+        help="评测子集：all/smoke/core/regression/adversarial/holdout（默认 all）",
+    )
     parser.add_argument("--max-sub", type=int,
                         help=f"覆盖子问题上限（1~{config.MAX_SUBQUESTIONS_LIMIT}；两批次需一致）")
     parser.add_argument("--rounds", type=int,

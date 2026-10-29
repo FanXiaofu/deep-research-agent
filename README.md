@@ -249,7 +249,7 @@ python maintenance.py restore backups/checkpoints-...db.fernet --target checkpoi
 - Docker 的 `./data` 卷同时保存 `checkpoints.db`、`memory.db`、`auth.db`；容器重建不会丢研究档案。
 - `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints` 与 `prune-backups`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；安全边界与 WAF/secret/备份要求见 [docs/security.md](docs/security.md)；真实模型 smoke 结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；安全边界与 WAF/secret/备份要求见 [docs/security.md](docs/security.md)；真实模型 smoke/20 题结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；110 题分层评测集见 [docs/eval-dataset.md](docs/eval-dataset.md)；部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
 
 ## Langfuse 全链路追踪
 
@@ -369,7 +369,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 183 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 185 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试/熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、证据支撑审计、prompt injection 隔离、内容安全审计钩子、CLI 续跑、评测集分层、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -432,6 +432,8 @@ python -m pytest tests -q     # 183 个用例 + 6 个集成用例（4 Postgres /
   - 真实结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；judge 与研究模型相同，不是独立强 judge
 - [x] **P1.8 全量 baseline / 断点续跑**：20 题全量（1×1 规模）0 报错；faithfulness 4.75、citation_validity 1.0；真实 kill/restart `--resume` 完成；修复 CLI None 输出与 Langfuse context manager 异常掩盖
   - 仍是同 judge 基线，不是独立强 judge；全量结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)
+- [x] **评测集 v2**：扩充到 110 题——80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial；`run_eval.py --suite` 分层运行
+  - 说明与用法见 [docs/eval-dataset.md](docs/eval-dataset.md)；同 judge 的 110 题仍不能替代独立强 judge
 
 ## 评测体系（W3）
 
