@@ -124,14 +124,15 @@ jobs:
         run: docker build -t deep-research-agent:ci .
 
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: deep-research-agent:ci
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.76.1 image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            deep-research-agent:ci
 
   compose:
     runs-on: ubuntu-latest
