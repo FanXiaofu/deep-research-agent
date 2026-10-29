@@ -17,13 +17,12 @@
   若子问题全部命中记忆，则没有 researcher 可跑，路由直接进 compactor，保持链路一致。
 节点级 retry_policy 只兜"节点整体抛出异常"这种意外（节点内部已做降级，正常不会触发）。
 """
-import sqlite3
-
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy, Send
 
 import config
+import db
 import run_context
 from graph.nodes import (
     archivist,
@@ -82,7 +81,7 @@ def _route_after_verify(state: ResearchState) -> str:
 
 
 def make_checkpointer() -> SqliteSaver:
-    conn = sqlite3.connect(config.CHECKPOINT_DB, check_same_thread=False)
+    conn = db.connect(config.CHECKPOINT_DB, check_same_thread=False)
     return SqliteSaver(conn)
 
 

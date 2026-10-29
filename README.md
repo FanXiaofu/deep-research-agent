@@ -133,6 +133,20 @@ docker compose up -d
 
 > 公网部署前必须设置 `APP_AUTH_TOKEN`（足够长的随机值），并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
 
+## 数据维护（C1）
+
+checkpoint 与 memory 都是 SQLite，统一开启 WAL + `busy_timeout`。备份使用 sqlite3 的 backup API（包含 WAL 中的数据），不要直接拷贝正在写入的 `.db` 文件。
+
+```bash
+python maintenance.py prune-checkpoints --days 7   # 0 = 不清理
+python maintenance.py backup --out backups
+python maintenance.py restore backups/checkpoints-20261029-112638-590354.db --target checkpoints.db --yes
+```
+
+- `restore` 前先停止服务；它会先校验备份 `integrity_check`，并自动给现有目标库做一份安全备份。
+- Docker 的 `./data` 卷同时保存 `checkpoints.db` 与 `memory.db`；容器重建不会丢研究档案。
+- `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints`。
+
 更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)。
 
 ## Langfuse 全链路追踪
@@ -183,6 +197,7 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `MEMORY_SIMILARITY_THRESHOLD` / `MEMORY_MAX_AGE_DAYS` / `MEMORY_MAX_HITS` | 记忆命中阈值（默认 0.62）、记忆寿命、单轮最多复用条数 |
 | `OLLAMA_NUM_CTX` / `LLM_NATIVE_OLLAMA` | Ollama 原生路径的上下文窗口与开关（原生 `/api/chat` 才能关掉 qwen3 thinking）；提示词逼近上限时在 stderr 告警 |
 | `CHECKPOINT_DB` | SQLite checkpoint 文件路径（默认 `checkpoints.db`）；容器部署时应放到持久化卷 |
+| `CHECKPOINT_RETENTION_DAYS` | checkpoint 保留天数（默认 7；0=不清理），由 `maintenance.py prune-checkpoints` 执行 |
 | `LLM_PRICE_INPUT_PER_M` / `LLM_PRICE_OUTPUT_PER_M` | 成本估算单价（USD / 1M tokens）；本地 Ollama 想显示 0 成本时显式设为 0 |
 | `LANGFUSE_PUBLIC_KEY/SECRET_KEY` | 都配置才启用追踪，留空自动降级关闭 |
 
@@ -238,7 +253,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 127 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、writer 降级
+python -m pytest tests -q     # 133 个用例：预算判定、熔断开合、路由、压缩、记忆复用、审核点位、规模/配置校验、请求隔离、认证/限流/XSS/SSRF、WAL/备份恢复、writer 降级
 ```
 
 ## 里程碑
@@ -269,6 +284,8 @@ python -m pytest tests -q     # 127 个用例：预算判定、熔断开合、�
   - 验证：三路并发 SSE 流各自只统计自己的调用；同 thread 重跑不再追加旧笔记；续跑 `BUDGET.reset()` 不会清零已用调用数
 - [x] **D1 安全边界**：Bearer 认证 + 本机回环兜底；研究/续跑改 POST JSON（Bearer header 天然免 CSRF）；报告 HTML 经 `nh3` 白名单清洗；抓取侧 SSRF 防护（协议/端口/私网/逐跳重定向/字节上限）；每 IP 限流与输入长度上限；测试 127 个
   - 部署默认值：compose 只发布 `127.0.0.1`，公网必须设置 `APP_AUTH_TOKEN` 并放在反向代理/TLS 后面
+- [x] **C1 数据可靠性**：checkpoint/memory 统一 `db.connect`（WAL + busy_timeout）；memory schema 用 `PRAGMA user_version` 记版本；checkpoint 按最后时间清理；备份/恢复 CLI（sqlite backup API + integrity_check + 恢复前安全备份）；Docker `memory.db` 挂载到数据卷；测试 133 个
+  - 备份包含 WAL 中的数据；恢复前自动给目标库做安全备份，避免误覆盖无可回退
 
 ## 评测体系（W3）
 

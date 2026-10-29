@@ -24,6 +24,8 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
 
 # ==== Checkpoint（断点恢复）====
 CHECKPOINT_DB = os.getenv("CHECKPOINT_DB", str(BASE_DIR / "checkpoints.db"))
+# 0 = 不自动清理；>0 时由 maintenance.py prune-checkpoints 按最后 checkpoint 时间清理旧 thread
+CHECKPOINT_RETENTION_DAYS = float(os.getenv("CHECKPOINT_RETENTION_DAYS", "7"))
 
 # ==== 研究规模控制（同时是 token 成本的闸门）====
 MAX_SUBQUESTIONS = int(os.getenv("MAX_SUBQUESTIONS", "4"))
@@ -192,6 +194,10 @@ def runtime_config_errors() -> list[str]:
         )
     if FETCH_MAX_REDIRECTS < 0:
         errors.append(f"FETCH_MAX_REDIRECTS 不能为负数（当前 {FETCH_MAX_REDIRECTS}）")
+    if CHECKPOINT_RETENTION_DAYS < 0:
+        errors.append(
+            f"CHECKPOINT_RETENTION_DAYS 不能为负数（当前 {CHECKPOINT_RETENTION_DAYS}）"
+        )
     return errors
 
 

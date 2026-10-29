@@ -7,4 +7,5 @@ reports/
 eval/results/
 checkpoints.db
 data/
+backups/
 .last_thread

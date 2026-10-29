@@ -9,3 +9,4 @@ logs/
 *.db-wal
 .last_thread
 data/
+backups/

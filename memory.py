@@ -28,6 +28,9 @@ import sqlite3
 from datetime import datetime, timedelta
 
 import config
+import db
+
+SCHEMA_VERSION = 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS research_memory (
@@ -70,9 +73,19 @@ def bigram_jaccard(a: str, b: str) -> float:
     return round(len(set_a & set_b) / len(set_a | set_b), 4)
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """用 PRAGMA user_version 记录 schema 版本；后续版本在这里追加 ALTER。"""
+    version = conn.execute("PRAGMA user_version").fetchone()[0] or 0
+    if version < SCHEMA_VERSION:
+        # v1：SCHEMA 已经包含全部表，旧库只需补写版本号
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.commit()
+
+
 def _connect(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=15)
+    conn = db.connect(db_path, timeout=15)
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 
@@ -233,7 +246,7 @@ def stats(*, db_path: str | None = None) -> dict:
     try:
         conn = _connect(db_path or config.MEMORY_DB)
     except sqlite3.Error:
-        return {"entries": 0, "used_entries": 0, "total_hits": 0}
+        return {"entries": 0, "used_entries": 0, "total_hits": 0, "schema_version": 0}
 
     try:
         row = conn.execute(
@@ -243,6 +256,7 @@ def stats(*, db_path: str | None = None) -> dict:
             FROM research_memory
             """
         ).fetchone()
+        version = conn.execute("PRAGMA user_version").fetchone()[0] or 0
     finally:
         conn.close()
 
@@ -252,6 +266,7 @@ def stats(*, db_path: str | None = None) -> dict:
         "total_hits": row[2] or 0,
         "oldest_update": row[3],
         "newest_update": row[4],
+        "schema_version": version,
     }
 
 
