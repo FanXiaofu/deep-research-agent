@@ -145,8 +145,11 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 - 多用户按 `user_id` 做 thread 归属与每日配额；`/metrics`、`/api/audit` 仅 admin。
 - 所有研究/续跑/报告/metrics 接口都走 Bearer；`/healthz` 公开。
 - 报告 HTML 已做白名单清洗；抓取侧已做 SSRF 防护。
-- 请求体 64KB、主题 500 字、审核内容 5000 字上限；每 IP/ token 每分钟限流。
-- Caddy 加 HSTS、CSP、`X-Frame-Options: DENY`、`nosniff`、`Referrer-Policy`。
+- 请求体 64KB（Caddy `request_body` + nginx `client_max_body_size` + app）、主题 500 字、审核内容 5000 字上限；每 token/IP 每分钟限流。
+- Caddy 加 HSTS、CSP、`X-Frame-Options: DENY`、`nosniff`、`Referrer-Policy`；CSS/JS 已外置，CSP 不含 `unsafe-inline`。
+- 敏感配置优先读 `<NAME>_FILE`（Docker/K8s secret）；不要把 secret 写入 `.env`/镜像。
+- 镜像由 CI Trivy 扫描 HIGH/CRITICAL；Dependabot 每周更新依赖。
+- **WAF 不在仓库内**：公网必须在 Cloudflare/云 WAF 层加托管规则、Bot 管理和源站隐藏，详见 `docs/security.md`。
 - 密钥轮换见 `docs/runbook.md`；轮换后旧 token 立即失效。
 - 不要把 `.env`、`data/`、`backups/` 提交到 Git；备份目录按敏感数据管理。
 
@@ -158,24 +161,30 @@ curl -s -H "Authorization: Bearer $APP_AUTH_TOKEN" \
 - 每日备份（SQLite 模式包含 `checkpoints.db`、`memory.db`、`auth.db`）：
 
 ```bash
-python maintenance.py backup --out backups
+export BACKUP_ENCRYPTION_KEY='<Fernet key>'
+python maintenance.py backup --encrypt --out backups
+python maintenance.py backup --encrypt --rclone-remote remote:deep-research-backups
 ```
 
 - 备份包含 WAL 内容；**不要直接 cp 正在写入的 .db**。
-- 每周执行 `prune-checkpoints --days 7`；恢复需停服，`restore` 会先做安全备份。
+- 加密成功后会删除明文；`--rclone-remote` 只能与 `--encrypt` 一起使用。
+- 每周执行 `prune-checkpoints --days 7` 与 `prune-backups --days 30`；恢复需停服，`restore` 会先做安全备份。
+- 恢复加密备份：`restore xxx.db.fernet --target ... --key-file ... --yes`。
 
 ### Postgres 模式
 
 ```bash
-# 备份
-pg_dump -Fc "$DATABASE_URL" > backups/deep_research-$(date +%F).dump
+# 备份 + 加密 + 可选 rclone 异地
+python maintenance.py pg-backup --encrypt --out backups
+python maintenance.py pg-backup --encrypt --rclone-remote remote:deep-research-backups
 
-# 恢复（先停 app）
-pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-29.dump
+# 恢复（先停 app；会覆盖目标库）
+python maintenance.py pg-restore backups/postgres-....dump.fernet \
+  --database-url "$DATABASE_URL" --key-file backup.key --yes
 ```
 
-- 备份加密后传到对象存储/另一台机器；当前脚本只做本地备份。
-- Postgres checkpoint 的保留策略尚未内置（P1.2）；上线后需按 `checkpoints` 表时间字段制定清理任务。
+- 备份使用 `pg_dump --format=custom`；`pg-restore` 会 `--clean --if-exists`，必须显式 `--yes`。
+- Postgres checkpoint 的保留策略尚未内置；上线后需按 `checkpoints` 表时间字段制定清理任务。
 - 每季度做恢复演练：停服 → 恢复 → `/healthz` → 小规模研究。
 
 ## 6. 观测与告警
@@ -231,7 +240,7 @@ git status --short          # 必须干净
 docker build -t deep-research-agent:<tag> .
 ```
 
-GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`compose` 六个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres/redis 跑集成测试；compose 校验生产 compose、Caddyfile 与 nginx）。
+GitHub Actions 必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`security`、`compose` 七个 job（runtime 实际启动容器、检查 `/healthz` 与 UID 10001；postgres/redis 跑集成测试；security 用 Trivy 扫 HIGH/CRITICAL；compose 校验生产 compose、Caddyfile 与 nginx）。
 
 发布步骤：
 

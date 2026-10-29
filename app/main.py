@@ -37,6 +37,7 @@ from app import security
 from budget import BUDGET
 from fastapi import Depends, FastAPI, HTTPException, Path as ApiPath, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langgraph.types import Command
 from pydantic import BaseModel, Field
@@ -60,6 +61,11 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Deep Research Agent", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    name="static",
+)
 
 _research_app = None
 logger = logging.getLogger("deep_research.web")

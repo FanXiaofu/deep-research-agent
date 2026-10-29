@@ -3,7 +3,7 @@
 - 仓库：`deep-research-agent`
 - 分支：`main`
 - 最后更新：2026-10-29
-- 验证基线：`python -m pytest tests -q` → **166 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
+- 验证基线：`python -m pytest tests -q` → **173 passed + 6 集成用例（4 Postgres / 2 Redis，需对应 URL）**
 - 说明：本文件按阶段追加，记录目标、改动、验证、遗留与决策；后续任务完成后继续往下写。
 
 ## 1. 当前状态
@@ -244,6 +244,21 @@
 - 遗留：没有自动化压测/滚动发布、蓝绿/金丝雀；nginx 只有被动健康检查（无主动探测）；Loki 方案需要 Docker socket；没有 Prometheus/Grafana 自动拉起。
 - 提交：`c497805`。
 
+### P1.5 数据安全 / 供应链 / CSP
+
+- 目标：把“能备份、能扫描、能挂 secret、CSP 无 inline”补齐，而不是只靠 TLS。
+- 改动：
+  - `maintenance.py`：Fernet 加密/解密、`gen-key`、`prune-backups`、加密恢复、Postgres `pg-backup`/`pg-restore`、`--rclone-remote` 仅允许加密备份；
+  - `config.py`：敏感配置支持 `<NAME>_FILE`（Docker/K8s secret），覆盖 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key；
+  - 前端：`index.html` 内联 CSS/JS 拆到 `app/static/app.css` / `app.js`，事件监听器外置；CSP 去掉 `unsafe-inline`，增加 `object-src`/`base-uri`/`form-action`/`frame-ancestors`；
+  - Caddy `request_body max_size 64KB`、nginx `client_max_body_size 64k`；
+  - CI 新增 `security` job（Trivy HIGH/CRITICAL，忽略无修复项）；新增 Dependabot（pip/Docker/Actions）；
+  - 新增 `docs/security.md`，明确 WAF 应部署在 Cloudflare/云 WAF 层，仓库不内置 WAF。
+- 验证：173 SQLite tests；加密备份/错误 key/恢复/密钥文件/过期清理；静态资源与无 inline 断言；`node --check`；本地 CLI 加密备份→恢复往返。
+- 供应链验证：Trivy 首次扫描发现 5 个可修复 HIGH/CRITICAL（certifi、urllib3、jaraco.context、wheel），升级后重建镜像再扫退出码 0；setuptools 也升级以替换其 vendored 旧 wheel/jaraco。
+- 遗留：无 WAF/Bot 管理、无 token 过期、无镜像签名、无主机运行时检测。
+- 提交：本轮提交。
+
 ## 3. 路线状态
 
 | 阶段 | 状态 | 说明 |
@@ -259,7 +274,8 @@
 | P1.2 Redis 共享状态 | 完成 | 共享限流/指标；Redis 故障回退 |
 | P1.3 账号/RBAC/配额/审计 | 完成 | 数据库 token、user/admin、thread 归属、每日配额、审计 |
 | P1.4 多副本/负载均衡/日志 | 完成 | Caddy + nginx DNS 发现、/readyz、SSE 不缓冲、120s 优雅退出、可选 Loki |
-| P1.5 数据安全/AI 质量 | 未开始 | 加密备份/异地容灾、镜像扫描、WAF、语义引用核验、注入防护 |
+| P1.5 数据安全/供应链/CSP | 完成 | 加密备份、secret 文件、Trivy/Dependabot、CSP 去 inline、边缘请求体限制 |
+| P1.6 AI 质量/内容安全 | 未开始 | 语义引用核验、prompt injection/内容安全、真实模型 A/B |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 
@@ -268,10 +284,11 @@
 - 独立强 judge 复评全量 20 题；
 - 真实 kill/restart 的 `--resume` 演示。
 
-**P1.5 架构阶段（当前 P1.4 明确不覆盖）：**
-- 语义级引用核验、提示词注入防护、内容安全；
-- 加密备份/异地容灾、镜像扫描/WAF、值班/SLO；
-- 自动化滚动发布、蓝绿/金丝雀与多副本压测。
+**P1.6 AI 质量/内容安全（当前 P1.5 明确不覆盖）：**
+- 语义级引用核验（论断是否被来源支持）；
+- prompt injection / 内容安全 / 输出政策；
+- 真实模型在线时的单变量 A/B、强 judge 复评、kill/restart 演示；
+- WAF/Bot 管理、镜像签名、值班/SLO。
 
 ## 4. 部署检查清单（公网）
 
@@ -285,6 +302,7 @@
 - [x] Redis 共享限流/指标 + CI redis job（P1.2）
 - [x] 账号/API token/RBAC/每日配额/审计（P1.3）
 - [x] 多副本 compose + Caddy/nginx 负载均衡 + `/readyz` + 日志聚合蓝图（P1.4）
+- [x] 加密备份 + secret 文件 + Trivy/Dependabot + CSP 去 inline（P1.5）
 - [ ] `.env` 设置足够长的随机 `APP_AUTH_TOKEN`（admin bootstrap）或创建管理员账号
 - [ ] 8000 端口不直接暴露公网；放在反向代理/TLS 后面
 - [ ] 反向代理与 app 同机 loopback 时也必须配 token

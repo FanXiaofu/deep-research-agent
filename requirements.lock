@@ -1,15 +1,18 @@
 ﻿# Generated from the tested venv on 2026-10-29.
-# CI / Docker install this file; requirements.txt remains the direct-dependency list.
+# Includes build tooling so Trivy sees fixed vendored packages; pip is base-image managed.
 aiosqlite==0.22.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 backoff==2.2.1
+backports.tarfile==1.2.0
 beautifulsoup4==4.15.0
-certifi==2026.7.22
+certifi==2026.10.23
+cffi==2.1.1
 charset-normalizer==3.5.1
 click==8.5.0
 colorama==0.4.6
+cryptography==50.0.2
 ddgs==9.16.0
 distro==1.9.0
 fastapi==0.141.1
@@ -22,6 +25,7 @@ httpx==0.28.1
 httpx2==2.12.0
 idna==3.19
 iniconfig==2.3.0
+jaraco.context==6.1.2
 Jinja2==3.1.6
 jiter==0.16.0
 jsonpatch==1.33
@@ -57,6 +61,7 @@ protobuf==7.36.1
 psycopg==3.3.6
 psycopg-binary==3.3.6
 psycopg-pool==3.3.3
+pycparser==3.12
 pydantic_core==2.46.5
 pydantic==2.13.5
 Pygments==2.21.0
@@ -66,7 +71,9 @@ PyYAML==6.0.3
 redis==8.1.0
 requests==2.34.2
 requests-toolbelt==1.0.0
+setuptools==84.2.1
 sniffio==1.3.1
+sortedcontainers==2.4.0
 soupsieve==2.9.2
 sqlite-vec==0.1.9
 sse-starlette==3.4.11
@@ -76,11 +83,12 @@ truststore==0.10.4
 typing_extensions==4.16.0
 typing-inspection==0.4.4
 tzdata==2026.6
-urllib3==2.7.0
+urllib3==2.8.0
 uuid_utils==0.17.1
 uvicorn==0.52.4
 watchfiles==1.2.0
 websockets==16.1.1
+wheel==0.48.0
 wrapt==2.4.1
 xxhash==4.0.1
 zstandard==0.25.0

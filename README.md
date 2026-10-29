@@ -128,6 +128,9 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 - 运行指标：`GET /metrics` 输出 Prometheus 文本；`/metrics.json` 输出 JSON 快照（请求计数 + research 状态）；仅 admin
 - API 写操作改为 POST JSON（`/api/research/stream`、`/api/resume/stream`），GET 返回 405；浏览器端用 `fetch` + ReadableStream 消费 SSE，Bearer header 天然规避 CSRF
 - 输出安全：报告 Markdown 转 HTML 后经 `nh3` 白名单清洗（去 script/事件属性/javascript: 链接）；抓取只允许 http/https 80/443，拒绝私网/链路本地/保留地址，逐跳校验重定向并限制响应字节数
+- 前端 CSP：CSS/JS 已拆到 `/static`，Caddy CSP 不再含 `unsafe-inline`；Caddy/nginx 均限制 64KB 请求体
+- 数据安全：备份支持 Fernet 加密、Postgres `pg_dump` 加密备份、rclone 异地同步；敏感配置支持 `<NAME>_FILE` secret 挂载；镜像由 Trivy 扫描，Dependabot 每周更新
+- WAF 不在仓库内：公网建议在 Cloudflare/云 WAF 层加托管规则、Bot 管理与源站隐藏，详见 [docs/security.md](docs/security.md)
 
 ### 账号与 token（P1.3）
 
@@ -153,7 +156,7 @@ docker compose up -d
 # Langfuse  → http://localhost:3000（注册后把 key 填入 .env 重启生效）
 ```
 
-本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像从 `requirements.lock` 安装，构建约 413MB，容器内 `/healthz` 已实测 200。
+本地 Ollama 用户需在 `docker-compose.yml` 的 app 服务中取消 `LLM_BASE_URL: http://host.docker.internal:11434/v1` 的注释（容器内访问宿主机 Ollama）。镜像从 `requirements.lock` 安装，容器内 `/healthz` 已实测 200。
 
 > 公网部署前必须设置 `APP_AUTH_TOKEN`（admin bootstrap）或用 `admin.py` 创建账号并签发 token，并把 8000 端口放在反向代理/TLS 后面。compose 默认只发布到 `127.0.0.1`，Langfuse 管理面同理；未配置任何 token 时服务只接受本机回环请求。反向代理如果与服务在同一台机器的 loopback 上，也必须配置 token，否则代理转发来的远程请求会被当作本机访问。
 >
@@ -161,8 +164,9 @@ docker compose up -d
 
 ## CI 与可复现构建（E1）
 
-- `requirements.lock`：86 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
-- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）、`redis`（共享限流/指标集成测试）、`compose`（生产 compose 与 Caddyfile/nginx 校验）。
+- `requirements.lock`：94 个依赖锁定到当前测试通过的版本；`requirements.txt` 只保留直接依赖清单。
+- `.github/workflows/ci.yml`：`test`（pytest）、`docker`（镜像构建）、`runtime`（容器健康检查 + 非 root）、`postgres`（Postgres 存储集成测试）、`redis`（共享限流/指标集成测试）、`security`（Trivy 镜像漏洞扫描）、`compose`（生产 compose 与 Caddyfile/nginx 校验）。
+- `.github/dependabot.yml`：每周更新 pip / Docker / GitHub Actions。
 - `Dockerfile` 用 `requirements.lock` 安装，并内置 `/healthz` HEALTHCHECK。
 - 本地构建：`docker build -t deep-research-agent .`；国内网络可加 `--build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`。
 
@@ -229,16 +233,21 @@ Promtail 需要挂 Docker socket（等同 root 权限），只适合受信主机
 checkpoint 与 memory 默认都是 SQLite，统一开启 WAL + `busy_timeout`。备份使用 sqlite3 的 backup API（包含 WAL 中的数据），不要直接拷贝正在写入的 `.db` 文件。
 
 ```bash
-python maintenance.py prune-checkpoints --days 7   # 0 = 不清理
-python maintenance.py backup --out backups
-python maintenance.py restore backups/checkpoints-20261029-112638-590354.db --target checkpoints.db --yes
+python maintenance.py gen-key                    # 只显示一次，存 secret manager
+python maintenance.py prune-checkpoints --days 7 # 0 = 不清理
+python maintenance.py backup --encrypt --out backups
+python maintenance.py pg-backup --encrypt --out backups
+python maintenance.py restore backups/checkpoints-...db.fernet --target checkpoints.db --key-file backup.key --yes
 ```
 
-- `restore` 前先停止服务；它会先校验备份 `integrity_check`，并自动给现有目标库做一份安全备份。
-- Docker 的 `./data` 卷同时保存 `checkpoints.db` 与 `memory.db`；容器重建不会丢研究档案。
-- `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints`。
+- Fernet 加密 + HMAC；`--encrypt` 成功后删除明文备份；错误 key 拒绝解密。
+- `--rclone-remote remote:...` 可把加密备份同步到异地，且只能与 `--encrypt` 一起用。
+- `restore` 前先停止服务；它会先校验备份 `integrity_check`，并自动给现有目标库做一份安全备份（加密恢复时安全备份也会加密）。
+- `pg-backup` / `pg-restore` 使用 `pg_dump` / `pg_restore`；恢复要求显式 `--yes`。
+- Docker 的 `./data` 卷同时保存 `checkpoints.db`、`memory.db`、`auth.db`；容器重建不会丢研究档案。
+- `CHECKPOINT_RETENTION_DAYS` 默认 7 天；生产环境建议用 cron / Task Scheduler 定期执行 `prune-checkpoints` 与 `prune-backups`。
 
-更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；单实例公网部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
+更多实现细节与踩坑记录见技术博客：[docs/blog.md](docs/blog.md)；阶段目标、改动、验证与遗留见 [docs/engineering-log.md](docs/engineering-log.md)；升级/回滚/备份/排障见 [docs/runbook.md](docs/runbook.md)；安全边界与 WAF/secret/备份要求见 [docs/security.md](docs/security.md)；部署目标与边界见 [docs/production.md](docs/production.md)，TLS 反代示例见 [deploy/Caddyfile](deploy/Caddyfile)。
 
 ## Langfuse 全链路追踪
 
@@ -284,6 +293,8 @@ docker compose stop langfuse-web langfuse-worker clickhouse minio redis postgres
 | `LOG_LEVEL` / `LOG_JSON` | 日志级别与格式；默认 `INFO` + JSON 行，本地想看可读文本设 `LOG_JSON=0` |
 | `APP_AUTH_TOKEN` | 静态 Bearer token（admin）；留空时允许本机回环或使用数据库账号 token |
 | `APP_AUTH_TOKENS` | 多个静态 admin token，逗号分隔；与 `APP_AUTH_TOKEN` 合并 |
+| `<NAME>_FILE` | 敏感配置从文件读取（Docker/K8s secret），优先于同名环境变量；支持 LLM/搜索/Langfuse/DB/Redis/静态 token/备份 key |
+| `BACKUP_ENCRYPTION_KEY` | 备份 Fernet key；`maintenance.py backup --encrypt` 使用 |
 | `AUTH_DB` | 账号/API token/审计库；默认 `<项目目录>/auth.db`；`DATABASE_URL` 存在时复用 Postgres |
 | `AUTH_DEFAULT_DAILY_QUOTA` | 新建用户的默认每日研究配额（默认 20；0=不限） |
 | `APP_RATE_LIMIT_PER_MINUTE` | 每 token/IP 每分钟研究/续跑请求上限（默认 30）；Redis 模式下跨实例共享 |
@@ -353,7 +364,7 @@ python eval/run_eval.py --compare mem1 mem2                              # 看 t
 运行期状态（usage / 预算时钟 / 降级事件 / 熔断器）按 `run_id`（通常等于 `thread_id`）隔离：同一进程内的并发请求、评测不同题、HITL 续跑互不污染；续跑不重置 usage，只重算墙钟。节点入口通过 `run_context.run_scope(state["run_id"])` 绑定，并行 researcher 也能读到同一份 run 状态。
 
 ```bash
-python -m pytest tests -q     # 166 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份恢复、引用后校验、日志/指标、评测分位数、Postgres/Redis
+python -m pytest tests -q     # 173 个用例 + 6 个集成用例（4 Postgres / 2 Redis，未配置对应 URL 时跳过）：预算、超时/重试、熔断、路由、压缩、记忆、审核、规模/配置、请求隔离、认证/RBAC/配额/审计、就绪检查、限流/XSS/SSRF、WAL/备份加密恢复、CSP 静态资源、secret 文件、引用后校验、日志/指标、评测分位数、Postgres/Redis
 ```
 
 ## 里程碑
@@ -408,6 +419,8 @@ python -m pytest tests -q     # 166 个用例 + 6 个集成用例（4 Postgres /
   - 账号库跟随 SQLite/Postgres；静态 env token 仍兼容为 admin
 - [x] **P1.4 多实例部署**：`docker-compose.prod.yml`（app 多副本 + Caddy + nginx + Postgres + Redis）；nginx Docker DNS 服务发现与被动故障转移；Caddy `/readyz` 健康检查 + `flush_interval -1`；uvicorn 120s 优雅退出；可选 Loki/Promtail/Grafana 日志聚合
   - 单实例 compose 保持默认；多副本需要 `--scale app=2` 与共享 Postgres/Redis
+- [x] **P1.5 安全与供应链**：Fernet 加密备份 + `pg-backup` + rclone 异地；`<NAME>_FILE` secret；CSP 去 `unsafe-inline`（CSS/JS 外置）；Caddy/nginx 64KB 请求体限制；Trivy CI + Dependabot
+  - 仍无内置 WAF、token 过期、镜像签名；WAF 建议部署在 Cloudflare/云 WAF 层
 
 ## 评测体系（W3）
 

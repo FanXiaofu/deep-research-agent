@@ -10,6 +10,11 @@
 {$APP_DOMAIN} {
 	encode zstd gzip
 
+	# 应用自身也限制 Content-Length；这里补上 chunked/代理层边界
+	request_body {
+		max_size 64KB
+	}
+
 	# 单实例默认直连 app；多副本生产 compose 通过 UPSTREAM=nginx:80 交给 nginx 做 Docker DNS 服务发现。
 	reverse_proxy {$UPSTREAM:app:8000} {
 		# SSE 必须立即刷出；-1 关闭响应缓冲
@@ -27,8 +32,8 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
-		# 页面使用内联 style/script；如果后续拆成外部静态文件，可去掉 unsafe-inline
-		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+		# 静态资源已拆到 /static；不再允许 inline script/style
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
 	}
 
 	log {

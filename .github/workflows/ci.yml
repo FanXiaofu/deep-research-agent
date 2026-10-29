@@ -115,6 +115,24 @@ jobs:
       - name: Run Postgres storage tests
         run: python -m pytest tests/test_postgres_store.py -q
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: docker build -t deep-research-agent:ci .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: deep-research-agent:ci
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
   compose:
     runs-on: ubuntu-latest
     steps:

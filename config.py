@@ -7,8 +7,20 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
+
+def _secret(name: str, default: str = "") -> str:
+    """优先读 <NAME>_FILE（Docker/K8s secret），否则读环境变量。"""
+    path = os.getenv(f"{name}_FILE", "").strip()
+    if path:
+        try:
+            return Path(path).read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            raise RuntimeError(f"无法读取 {name}_FILE: {path}") from exc
+    return os.getenv(name, default)
+
+
 # ==== LLM（OpenAI 兼容接口，默认 DeepSeek）====
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_API_KEY = _secret("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 # 评测 judge 可单独指定更强模型；留空表示复用 LLM_MODEL
@@ -20,20 +32,22 @@ LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
 
 # ==== 搜索（tavily / duckduckgo）====
 SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "tavily").lower()
-SEARCH_API_KEY = os.getenv("SEARCH_API_KEY", "")
+SEARCH_API_KEY = _secret("SEARCH_API_KEY")
 
 # ==== Langfuse 可观测（可选，两个 key 都配置才启用）====
-LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
+LANGFUSE_PUBLIC_KEY = _secret("LANGFUSE_PUBLIC_KEY")
+LANGFUSE_SECRET_KEY = _secret("LANGFUSE_SECRET_KEY")
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
 
 # ==== 存储（默认 SQLite；配置 DATABASE_URL 后 checkpoint/memory 走 Postgres）====
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = _secret("DATABASE_URL")
 # 多实例共享限流与指标；留空使用进程内实现
-REDIS_URL = os.getenv("REDIS_URL", "")
+REDIS_URL = _secret("REDIS_URL")
 # 账号/API token/审计库（DATABASE_URL 存在时复用 Postgres）
 AUTH_DB = os.getenv("AUTH_DB") or str(BASE_DIR / "auth.db")
 AUTH_DEFAULT_DAILY_QUOTA = int(os.getenv("AUTH_DEFAULT_DAILY_QUOTA", "20"))
+# 备份加密 key（Fernet，base64）；留空时 backup --encrypt 会拒绝执行
+BACKUP_ENCRYPTION_KEY = _secret("BACKUP_ENCRYPTION_KEY")
 
 # ==== Checkpoint（断点恢复）====
 CHECKPOINT_DB = os.getenv("CHECKPOINT_DB", str(BASE_DIR / "checkpoints.db"))
@@ -135,9 +149,9 @@ LOG_JSON = os.getenv("LOG_JSON", "1") == "1"
 
 # ==== Web 安全（公网部署时 APP_AUTH_TOKEN 必填）====
 # 留空只允许本机回环访问；对外部署必须设置一个足够长的随机 token（Bearer）。
-APP_AUTH_TOKEN = os.getenv("APP_AUTH_TOKEN", "")
+APP_AUTH_TOKEN = _secret("APP_AUTH_TOKEN")
 # 多个客户端 token，逗号分隔；与 APP_AUTH_TOKEN 合并生效
-APP_AUTH_TOKENS = os.getenv("APP_AUTH_TOKENS", "")
+APP_AUTH_TOKENS = _secret("APP_AUTH_TOKENS")
 APP_RATE_LIMIT_PER_MINUTE = int(os.getenv("APP_RATE_LIMIT_PER_MINUTE", "30"))
 APP_MAX_TOPIC_CHARS = int(os.getenv("APP_MAX_TOPIC_CHARS", "500"))
 APP_MAX_REVIEW_CHARS = int(os.getenv("APP_MAX_REVIEW_CHARS", "5000"))

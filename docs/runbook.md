@@ -23,12 +23,14 @@ git status --short                   # 必须干净
 docker build -t deep-research-agent:$(git rev-parse --short HEAD) .
 ```
 
-- CI（`.github/workflows/ci.yml`）必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`compose` 六个 job。
-- 生产 `.env` 必须设置：`APP_AUTH_TOKEN`、LLM key、搜索 key。
-- 升级前先备份：
+- CI（`.github/workflows/ci.yml`）必须通过 `test`、`docker`、`runtime`、`postgres`、`redis`、`security`、`compose` 七个 job。
+- 生产必须设置：`APP_AUTH_TOKEN`（admin）、LLM key、搜索 key；优先用 `*_FILE` 挂 secret。
+- 升级前先加密备份：
 
 ```bash
-python maintenance.py backup --out backups
+export BACKUP_ENCRYPTION_KEY='<Fernet key>'
+python maintenance.py backup --encrypt --out backups
+# Postgres 模式：python maintenance.py pg-backup --encrypt --out backups
 ```
 
 ## 2. 启动与健康检查
@@ -95,33 +97,46 @@ python maintenance.py restore backups/<snapshot>.db --target checkpoints.db --ye
 ## 5. 备份与恢复
 
 ```bash
-# 备份（checkpoint + memory + auth）
-python maintenance.py backup --out backups
+# 生成 key（只显示一次，存 secret manager）
+python maintenance.py gen-key
 
-# 清理过期 checkpoint（0=不清理）
+# 加密备份（checkpoint + memory + auth），成功后删除明文
+export BACKUP_ENCRYPTION_KEY='<Fernet key>'
+python maintenance.py backup --encrypt --out backups
+
+# 加密后同步到异地（需要 rclone）
+python maintenance.py backup --encrypt --rclone-remote remote:deep-research-backups
+
+# 清理过期 checkpoint / 备份
 python maintenance.py prune-checkpoints --days 7
+python maintenance.py prune-backups --days 30
 
-# 恢复（必须显式 --yes）
-python maintenance.py restore backups/checkpoints-YYYYmmdd-HHMMSS-ffffff.db \
-  --target checkpoints.db --yes
+# 恢复（必须显式 --yes；.fernet 会自动要求 key）
+python maintenance.py restore backups/checkpoints-YYYYmmdd-HHMMSS-ffffff.db.fernet \
+  --target checkpoints.db --key-file backup.key --yes
 ```
 
 - 备份使用 sqlite backup API，包含 WAL；不要直接 `cp` 正在写入的 `.db`。
-- `backups/` 可能含研究内容，限制目录权限；生产建议加密存储。
+- `backups/` 可能含研究内容，限制目录权限；加密成功后才删明文。
+- **备份 key 丢失 = 无法恢复**：至少两地保存 key，定期做恢复演练。
 - 建议 cron / Task Scheduler 每天备份、每周清理。
 
 ### Postgres 模式
 
 ```bash
-# 备份/恢复
-pg_dump -Fc "$DATABASE_URL" > backups/deep_research-$(date +%F).dump
-pg_restore --clean --if-exists -d "$DATABASE_URL" backups/deep_research-2026-10-29.dump
+# 备份 + 加密 + 可选 rclone 异地
+python maintenance.py pg-backup --encrypt --out backups
+python maintenance.py pg-backup --encrypt --rclone-remote remote:deep-research-backups
+
+# 恢复（先停 app；会 --clean --if-exists 覆盖目标库）
+python maintenance.py pg-restore backups/postgres-....dump.fernet \
+  --database-url "$DATABASE_URL" --key-file backup.key --yes
 
 # SQLite 研究档案迁移到 Postgres（旧 checkpoint 不迁移，先让在途任务完成）
 python maintenance.py migrate-memory --from memory.db --database-url "$DATABASE_URL"
 ```
 
-- `maintenance.py backup/prune/restore` 只维护 SQLite；`DATABASE_URL` 启用时会显式拒绝。
+- `maintenance.py backup/prune/restore` 只维护 SQLite；Postgres 用 `pg-backup`/`pg-restore` 或 pg_dump/pg_restore。
 - Postgres checkpoint 保留策略尚未内置，需按 `checkpoints` 表时间制定清理。
 - 切换存储前先停服务、备份 SQLite 与 Postgres 两侧。
 
@@ -160,10 +175,17 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ### LLM / 搜索 / Langfuse key
 
 1. 在对应控制台创建新 key；
-2. 更新 `.env`；
+2. 更新 secret 文件（`*_FILE`）或 `.env`；
 3. 重启服务；
 4. 用 `/healthz` + 一次小规模研究验证；
 5. 撤销旧 key。
+
+### 备份加密 key
+
+- 新 key 只用于新备份；旧备份仍需要旧 key 才能解密。
+- 轮换时保留旧 key 至少一个备份保留周期（默认 30 天），并标注对应日期范围。
+- 不要把新旧 key 一起放在同一台生产主机；至少两地保存。
+- key 丢失无法恢复备份，必须做恢复演练。
 
 ## 7. 故障排查
 
