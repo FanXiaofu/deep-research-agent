@@ -35,6 +35,7 @@
 | `8b4c2d2` | P1.7：真实 smoke 修复 + 可选内容安全审计 |
 | `451c818` | P1.8：20 题 baseline + kill/restart 修复 |
 | `48c2e51` | 评测集扩到 110 题 + suite 分层 |
+| `f7f40e3` | Command Code headless 独立 judge |
 
 推送状态：
 
@@ -317,6 +318,7 @@
 - 单题抽样：baseline q01 同模型 qwen 给 5/5/5（但正文 0 引用），`deepseek/deepseek-v4-pro` 给 4/4/2，证明同 judge 偏差。
 - 验证：188 SQLite tests；适配器 fake subprocess 测试；真实 key 最小调用解析通过；key 未写入仓库。
 - 限制：`cmdc` 每题启动一次，较慢；需要 Go+ 套餐/API key；仍不是 110 题独立复评。
+- 提交：`f7f40e3`。
 
 ## 3. 路线状态
 
