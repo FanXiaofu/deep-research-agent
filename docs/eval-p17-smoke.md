@@ -86,7 +86,24 @@ python eval/run_eval.py \
 
 baseline q01 正文实际 **0 条引用**，同模型 judge 仍给了 citation_quality=5；独立 judge 指出没有正文引用标记、无法核对来源，给了 2。这是单题抽样，但清楚地说明同模型 judge 有系统性偏差。
 
-接入方式：`JUDGE_PROVIDER=commandcode`、`JUDGE_MODEL=deepseek/deepseek-v4-pro`，并设置 `COMMAND_CODE_API_KEY`。
+接入方式：`JUDGE_PROVIDER=commandcode`、`JUDGE_MODEL=deepseek/deepseek-v4-pro`，并设置 `COMMAND_CODE_API_KEY`（本机已登录 CLI 时也可不设）。
+
+## 独立 judge smoke 10
+
+同一批 smoke 题（q01–q10，1×1 规模）分别用同模型 qwen 和独立 DeepSeek V4 Pro 评分：
+
+| 指标 | 同模型 qwen | 独立 DeepSeek V4 Pro |
+|---|---:|---:|
+| faithfulness | 4.6 | **3.6** |
+| coverage | 4.1 | **2.7** |
+| citation_quality | 4.5 | **2.4** |
+| must_cover_coverage | 0.733 | **0.5** |
+| source_utilization | 0.756 | **0.589** |
+| 单题耗时 | — | 205.9s（含 3 次 CLI judge） |
+
+10/10 完成，0 题报错。独立 judge 明显更严格，尤其是指出报告论断与研究笔记无依据/矛盾；这证明同模型 judge 的分数偏高，不能作为对外质量结论。
+
+注意：`cmdc` 是编码 Agent，不是专用 judge；它可能比理想 judge 更严格，这仍是“另一个 judge 的信号”，不是人工真值。
 
 ## 结论与限制
 

@@ -317,7 +317,8 @@
 - 配置：`JUDGE_PROVIDER=commandcode`、`JUDGE_MODEL`、`JUDGE_EFFORT`、可选 `COMMAND_CODE_CLI`；key 只从 `COMMAND_CODE_API_KEY` 环境变量继承。
 - 单题抽样：baseline q01 同模型 qwen 给 5/5/5（但正文 0 引用），`deepseek/deepseek-v4-pro` 给 4/4/2，证明同 judge 偏差。
 - 验证：188 SQLite tests；适配器 fake subprocess 测试；真实 key 最小调用解析通过；key 未写入仓库。
-- 限制：`cmdc` 每题启动一次，较慢；需要 Go+ 套餐/API key；仍不是 110 题独立复评。
+- 独立 judge smoke 10（`p18_cc_smoke`）：10/10 完成；faithfulness 3.6、coverage 2.7、citation_quality 2.4、must_cover 0.5；同题同模型 qwen 为 4.6/4.1/4.5/0.733，确认同 judge 分数偏高。独立 judge 均值耗时 205.9s/题（含 3 次 CLI 调用）。
+- 限制：`cmdc` 是编码 Agent，不是专用 judge，可能偏严；需要 Go+ 套餐/登录或 API key；仍不是 110 题独立复评。
 - 提交：`f7f40e3`。
 
 ## 3. 路线状态
@@ -340,7 +341,7 @@
 | P1.7 真实 smoke/内容安全钩子 | 部分完成 | 1 题真实 smoke、报告 bug 修复、可选安全审计 |
 | P1.8 全量 baseline/kill-restart | 部分完成 | 20 题同 judge、断点续跑完成；Command Code judge 已接入，110 题独立复评未跑 |
 | 评测集 v2 | 完成 | 110 题分层：80 core + 30 adversarial；suite 过滤 |
-| Command Code 独立 judge | 完成（单题抽样） | `JUDGE_PROVIDER=commandcode`；Go 模型 headless |
+| Command Code 独立 judge | 完成 smoke 10 | `JUDGE_PROVIDER=commandcode`；Go 模型 headless；均分 3.6/2.7/2.4 |
 
 工程化 A–F + P0 基线已闭环。剩余未完成项分为两类：
 

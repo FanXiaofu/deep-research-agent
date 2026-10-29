@@ -432,7 +432,7 @@ python -m pytest tests -q     # 188 个用例 + 6 个集成用例（4 Postgres /
 - [x] **P1.7 真实 smoke / 内容安全钩子**：本地 Ollama `qwen2.5:7b-instruct` 跑 1 题真实评测；修复引用标记误判、模型自造来源、无 H1 截断；新增可选 `SAFETY_JUDGE_MODEL` 内容安全审计（默认关闭）
   - 真实结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)；judge 与研究模型相同，不是独立强 judge
 - [x] **P1.8 全量 baseline / 断点续跑**：20 题全量（1×1 规模）0 报错；faithfulness 4.75、citation_validity 1.0；真实 kill/restart `--resume` 完成；修复 CLI None 输出与 Langfuse context manager 异常掩盖
-  - 新增 `JUDGE_PROVIDER=commandcode`：通过 `cmdc` headless 调 Go 套餐模型；独立 judge 单题抽样显示同模型偏差
+  - 新增 `JUDGE_PROVIDER=commandcode`：通过 `cmdc` headless 调 Go 套餐模型；smoke 10 独立 judge 均分 3.6/2.7/2.4，同模型为 4.6/4.1/4.5，确认同 judge 偏高
   - 全量结果见 [docs/eval-p17-smoke.md](docs/eval-p17-smoke.md)
 - [x] **评测集 v2**：扩充到 110 题——80 core（10 smoke / 50 regression / 10 holdout）+ 30 adversarial；`run_eval.py --suite` 分层运行
   - 说明与用法见 [docs/eval-dataset.md](docs/eval-dataset.md)；同 judge 的 110 题仍不能替代独立强 judge
