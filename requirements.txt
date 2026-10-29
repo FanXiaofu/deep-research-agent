@@ -26,5 +26,5 @@ prometheus-client>=0.20
 jinja2>=3.1
 markdown>=3.6
 sse-starlette>=2.0
-langfuse>=2.50
+langfuse>=5.0.4
 pytest>=7.4          # 开发/测试：python -m pytest tests -q
